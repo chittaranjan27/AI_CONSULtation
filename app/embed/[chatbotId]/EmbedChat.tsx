@@ -155,17 +155,14 @@ export default function EmbedChat({
 
   const detectAndSyncLanguage = useCallback((text: string) => {
     if (!text) return;
-    const cleanText = text.replace(/د\.إ/g, "").trim();
-    if (!cleanText) return;
-
     // Devanagari script for Hindi
-    if (/[\u0900-\u097F]/.test(cleanText)) {
+    if (/[\u0900-\u097F]/.test(text)) {
       if (supportedLanguages.includes("hi") && selectedLanguageRef.current !== "hi") {
         setSelectedLanguage("hi");
       }
     }
     // Arabic script for Arabic and Urdu
-    else if (/[\u0600-\u06FF]/.test(cleanText)) {
+    else if (/[\u0600-\u06FF]/.test(text)) {
       const hasUrdu = supportedLanguages.includes("ur");
       const hasArabic = supportedLanguages.includes("ar");
 
@@ -176,7 +173,7 @@ export default function EmbedChat({
         detected = "ar";
       } else if (hasUrdu && hasArabic) {
         // Urdu specific characters check: چ, پ, گ, ڈ, ڑ, ں, ہ, ے
-        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(cleanText)) {
+        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(text)) {
           detected = "ur";
         } else {
           detected = "ar";
@@ -814,13 +811,12 @@ export default function EmbedChat({
 
     // Detect and update language automatically based on user voice text
     let activeLang = selectedLanguageRef.current;
-    const cleanMsgText = messageText.replace(/د\.إ/g, "").trim();
-    if (/[\u0900-\u097F]/.test(cleanMsgText)) {
+    if (/[\u0900-\u097F]/.test(messageText)) {
       if (supportedLanguages.includes("hi")) {
         activeLang = "hi";
         setSelectedLanguage("hi");
       }
-    } else if (/[\u0600-\u06FF]/.test(cleanMsgText)) {
+    } else if (/[\u0600-\u06FF]/.test(messageText)) {
       const hasUrdu = supportedLanguages.includes("ur");
       const hasArabic = supportedLanguages.includes("ar");
       if (hasUrdu && !hasArabic) {
@@ -830,7 +826,7 @@ export default function EmbedChat({
         activeLang = "ar";
         setSelectedLanguage("ar");
       } else if (hasUrdu && hasArabic) {
-        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(cleanMsgText)) {
+        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(messageText)) {
           activeLang = "ur";
           setSelectedLanguage("ur");
         } else {
@@ -855,6 +851,26 @@ export default function EmbedChat({
 
     let fullResponseText = "";
 
+    // ── TTS Text Cleaner ──
+    // Strips option lists, emoji-prefixed choices, product details, and pricing
+    // from text before sending to TTS synthesis. Keeps only conversational prose.
+    const cleanTextForTTS = (text: string): string => {
+      let cleaned = text;
+      // Remove full lines that are numbered/bulleted options (1. ..., 2) ..., - ..., • ...)
+      cleaned = cleaned.replace(/^\s*\d+[.):]\s+.+$/gm, "");
+      cleaned = cleaned.replace(/^\s*[-•●▪︎▸►]\s+.+$/gm, "");
+      // Remove lines that start with emoji(s) followed by short text (option chips)
+      cleaned = cleaned.replace(/^\s*[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}]+\s*.{0,80}$/gmu, "");
+      // Remove price mentions (₹xxx, د.إ xxx, $xxx)
+      cleaned = cleaned.replace(/[₹$]\s*[\d,.]+/g, "");
+      cleaned = cleaned.replace(/د\.إ\s*[\d,.]+/g, "");
+      // Remove inline option enumerations like "Option A, Option B, or Option C"
+      cleaned = cleaned.replace(/:\s*(?:['"][^'"]+['"]\s*,\s*){2,}['"][^'"]+['"]/g, "");
+      // Collapse multiple blank lines and trim
+      cleaned = cleaned.replace(/\n{2,}/g, "\n").trim();
+      return cleaned;
+    };
+
     // Helper to check for new complete sentences and send to TTS in background
     const checkAndQueueSentences = () => {
       if (!isVoiceMode) return;
@@ -865,7 +881,7 @@ export default function EmbedChat({
       let lastIndex = 0;
 
       while ((match = sentenceRegex.exec(untranslated)) !== null) {
-        const sentence = match[0].trim();
+        const sentence = cleanTextForTTS(match[0]);
         if (sentence) {
           const index = sentenceIndexRef.current++;
           synthesizeAndQueue(sentence, index);
@@ -959,6 +975,7 @@ export default function EmbedChat({
               const data = JSON.parse(payload);
               if (data.toolName === "show_options" && data.result) {
                 const suggestions = Array.isArray(data.result) ? data.result : [];
+                console.log("[VOICE a:] show_options result:", JSON.stringify(suggestions), "count:", suggestions.length);
                 setChatMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantId ? { ...m, suggestions } : m
@@ -1002,6 +1019,7 @@ export default function EmbedChat({
                 const output = data.output;
                 if (toolName === "show_options" && output) {
                   const suggestions = Array.isArray(output) ? output : [];
+                  console.log("[VOICE data:] show_options output:", JSON.stringify(suggestions), "count:", suggestions.length);
                   setChatMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantId ? { ...m, suggestions } : m
@@ -1022,6 +1040,7 @@ export default function EmbedChat({
                 const tName = data.toolName || toolCallNames[data.toolCallId] || "";
                 const result = data.result || data.output;
                 if (tName === "show_options" && result) {
+                  console.log("[VOICE tool-result] show_options:", JSON.stringify(result), "isArray:", Array.isArray(result));
                   setChatMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantId ? { ...m, suggestions: Array.isArray(result) ? result : [] } : m
@@ -1054,7 +1073,7 @@ export default function EmbedChat({
 
     // Synthesize and play any leftover text at the end of the stream
     if (isVoiceMode) {
-      const leftover = fullResponseText.slice(sentTextLengthRef.current).trim();
+      const leftover = cleanTextForTTS(fullResponseText.slice(sentTextLengthRef.current));
       if (leftover) {
         const index = sentenceIndexRef.current++;
         synthesizeAndQueue(leftover, index);
@@ -1173,13 +1192,12 @@ export default function EmbedChat({
 
     // Detect and update language automatically based on user text
     let activeLang = selectedLanguageRef.current;
-    const cleanMsgText = messageText.replace(/د\.إ/g, "").trim();
-    if (/[\u0900-\u097F]/.test(cleanMsgText)) {
+    if (/[\u0900-\u097F]/.test(messageText)) {
       if (supportedLanguages.includes("hi")) {
         activeLang = "hi";
         setSelectedLanguage("hi");
       }
-    } else if (/[\u0600-\u06FF]/.test(cleanMsgText)) {
+    } else if (/[\u0600-\u06FF]/.test(messageText)) {
       const hasUrdu = supportedLanguages.includes("ur");
       const hasArabic = supportedLanguages.includes("ar");
       if (hasUrdu && !hasArabic) {
@@ -1189,7 +1207,7 @@ export default function EmbedChat({
         activeLang = "ar";
         setSelectedLanguage("ar");
       } else if (hasUrdu && hasArabic) {
-        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(cleanMsgText)) {
+        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(messageText)) {
           activeLang = "ur";
           setSelectedLanguage("ur");
         } else {
@@ -1311,6 +1329,7 @@ export default function EmbedChat({
               const data = JSON.parse(payload);
               if (data.toolName === "show_options" && data.result) {
                 const suggestions = Array.isArray(data.result) ? data.result : [];
+                console.log("[TEXT a:] show_options result:", JSON.stringify(suggestions), "count:", suggestions.length);
                 setChatMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantId ? { ...m, suggestions } : m
@@ -1357,6 +1376,7 @@ export default function EmbedChat({
 
                 if (toolName === "show_options" && output) {
                   const suggestions = Array.isArray(output) ? output : [];
+                  console.log("[TEXT data:] show_options output:", JSON.stringify(suggestions), "count:", suggestions.length);
                   setChatMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantId ? { ...m, suggestions } : m
@@ -1378,6 +1398,7 @@ export default function EmbedChat({
                 const tName = data.toolName || toolCallNames[data.toolCallId] || "";
                 const result = data.result || data.output;
                 if (tName === "show_options" && result) {
+                  console.log("[TEXT tool-result] show_options:", JSON.stringify(result), "isArray:", Array.isArray(result));
                   setChatMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantId ? { ...m, suggestions: Array.isArray(result) ? result : [] } : m
@@ -2324,7 +2345,7 @@ export default function EmbedChat({
               {/* Scrollable list of messages */}
               <div
                 className="flex-1 overflow-y-auto space-y-4 pr-1"
-                style={mode === "inline" ? {} : { maxHeight: "140px" }}
+                style={mode === "inline" ? {} : { maxHeight: "320px" }}
               >
                 {(() => {
                   const visibleVoiceMessages = chatMessages.filter((message) => {
@@ -2377,24 +2398,26 @@ export default function EmbedChat({
                           </div>
                         </div>
 
-                        {/* Suggestion Chips in Voice Mode */}
-                        {isLastAssistant && message.suggestions && message.suggestions.length > 0 && (
+                        {/* Suggestion Chips in Voice Mode — shown on every message with suggestions */}
+                        {message.suggestions && message.suggestions.length > 0 && (
                           <div className="flex flex-col gap-1.5 pl-1">
                             {message.suggestions.map((opt, optIdx) => (
                               <button
                                 key={opt}
                                 onClick={() => {
                                   // Submit the selected option as a voice message
-                                  submitVoiceMessage(opt);
+                                  if (isLastAssistant) submitVoiceMessage(opt);
                                 }}
-                                disabled={isLoading || isStreaming || voiceState === "thinking"}
-                                className="w-full text-left px-3 py-2 rounded-xl text-[11px] font-medium border transition-all cursor-pointer disabled:opacity-40 flex items-center gap-2"
+                                disabled={!isLastAssistant || isLoading || isStreaming || voiceState === "thinking"}
+                                className="w-full text-left px-3 py-2 rounded-xl text-[11px] font-medium border transition-all flex items-center gap-2"
                                 style={{
                                   borderColor: `${primaryColor}35`,
                                   color: "var(--text-primary)",
                                   background: `${primaryColor}08`,
-                                  animation: "fadeInUp 0.25s ease-out both",
-                                  animationDelay: `${optIdx * 0.06}s`,
+                                  opacity: isLastAssistant ? 1 : 0.5,
+                                  cursor: isLastAssistant ? "pointer" : "default",
+                                  animation: isLastAssistant ? "fadeInUp 0.25s ease-out both" : "none",
+                                  animationDelay: isLastAssistant ? `${optIdx * 0.06}s` : "0s",
                                 }}
                               >
                                 <span
@@ -2404,12 +2427,14 @@ export default function EmbedChat({
                                   {optIdx + 1}
                                 </span>
                                 <span className="flex-1">{opt}</span>
-                                <ArrowRight className="w-3 h-3 opacity-40 shrink-0" style={{ color: primaryColor }} />
+                                {isLastAssistant && <ArrowRight className="w-3 h-3 opacity-40 shrink-0" style={{ color: primaryColor }} />}
                               </button>
                             ))}
-                            <p className="text-[9px] text-center mt-1" style={{ color: "var(--text-muted)" }}>
-                              Tap an option or say your choice
-                            </p>
+                            {isLastAssistant && (
+                              <p className="text-[9px] text-center mt-1" style={{ color: "var(--text-muted)" }}>
+                                Tap an option or say your choice
+                              </p>
+                            )}
                           </div>
                         )}
 
@@ -2656,48 +2681,55 @@ export default function EmbedChat({
                             </div>
                           )}
 
-                          {/* Render Clickable Option Buttons (vertical list format) */}
-                          {message.suggestions && message.suggestions.length > 0 && index === visibleMessages.length - 1 && (
-                            <div className="flex flex-col gap-2 mt-2 w-full">
-                              {message.suggestions.map((opt, optIdx) => (
-                                <button
-                                  key={opt}
-                                  onClick={() => handleSuggestionClick(opt)}
-                                  disabled={isLoading || isStreaming}
-                                  className="w-full text-left px-4 py-3 rounded-xl text-[13px] font-medium border transition-all cursor-pointer disabled:opacity-40 flex items-center gap-3 group"
-                                  style={{
-                                    borderColor: `${primaryColor}35`,
-                                    color: "var(--text-primary)",
-                                    background: `${primaryColor}08`,
-                                    animationDelay: `${optIdx * 0.06}s`,
-                                    animation: "fadeInUp 0.25s ease-out both",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    (e.currentTarget as HTMLButtonElement).style.background = `${primaryColor}20`;
-                                    (e.currentTarget as HTMLButtonElement).style.borderColor = primaryColor;
-                                    (e.currentTarget as HTMLButtonElement).style.transform = "translateX(4px)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLButtonElement).style.background = `${primaryColor}08`;
-                                    (e.currentTarget as HTMLButtonElement).style.borderColor = `${primaryColor}35`;
-                                    (e.currentTarget as HTMLButtonElement).style.transform = "translateX(0)";
-                                  }}
-                                >
-                                  <span
-                                    className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-bold text-white"
-                                    style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)` }}
+                          {/* Render Option Buttons — always visible on messages with suggestions */}
+                          {message.suggestions && message.suggestions.length > 0 && (() => {
+                            const isLatest = index === visibleMessages.length - 1;
+                            return (
+                              <div className="flex flex-col gap-2 mt-2 w-full" style={{ opacity: isLatest ? 1 : 0.5 }}>
+                                {message.suggestions.map((opt, optIdx) => (
+                                  <button
+                                    key={opt}
+                                    onClick={() => { if (isLatest) handleSuggestionClick(opt); }}
+                                    disabled={!isLatest || isLoading || isStreaming}
+                                    className={`w-full text-left px-4 py-3 rounded-xl text-[13px] font-medium border transition-all flex items-center gap-3 ${isLatest ? "cursor-pointer group" : "cursor-default"}`}
+                                    style={{
+                                      borderColor: `${primaryColor}35`,
+                                      color: "var(--text-primary)",
+                                      background: `${primaryColor}08`,
+                                      animationDelay: isLatest ? `${optIdx * 0.06}s` : "0s",
+                                      animation: isLatest ? "fadeInUp 0.25s ease-out both" : "none",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (!isLatest) return;
+                                      (e.currentTarget as HTMLButtonElement).style.background = `${primaryColor}20`;
+                                      (e.currentTarget as HTMLButtonElement).style.borderColor = primaryColor;
+                                      (e.currentTarget as HTMLButtonElement).style.transform = "translateX(4px)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (!isLatest) return;
+                                      (e.currentTarget as HTMLButtonElement).style.background = `${primaryColor}08`;
+                                      (e.currentTarget as HTMLButtonElement).style.borderColor = `${primaryColor}35`;
+                                      (e.currentTarget as HTMLButtonElement).style.transform = "translateX(0)";
+                                    }}
                                   >
-                                    {optIdx + 1}
-                                  </span>
-                                  <span className="flex-1">{opt}</span>
-                                  <ArrowRight
-                                    className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                                    style={{ color: primaryColor }}
-                                  />
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                                    <span
+                                      className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-bold text-white"
+                                      style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)` }}
+                                    >
+                                      {optIdx + 1}
+                                    </span>
+                                    <span className="flex-1">{opt}</span>
+                                    {isLatest && (
+                                      <ArrowRight
+                                        className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                        style={{ color: primaryColor }}
+                                      />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
 
                           {/* Render Products Carousel */}
                           {message.products && message.products.length > 0 && (

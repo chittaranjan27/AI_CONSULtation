@@ -16,7 +16,7 @@ function extractText(message: { role: string; content?: string; parts?: Array<{ 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { chatbotId, messages, conversationId, visitorId, visitorName, visitorEmail, mode } = body;
+    const { chatbotId, messages, conversationId, visitorId, visitorName, visitorEmail, mode, language } = body;
 
     if (!chatbotId || !messages || !Array.isArray(messages)) {
       return new Response("Missing chatbotId or messages", { status: 400 });
@@ -81,6 +81,7 @@ export async function POST(req: Request) {
       visitorId: resolvedVisitorId,
       messages: chatMessages,
       mode,
+      language,
     });
 
     // Return as UI message stream response (AI SDK v6 format)
