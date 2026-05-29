@@ -2242,8 +2242,8 @@ export default function EmbedChat({
                     style={{
                       border: "3.5px solid transparent",
                       borderTopColor: primaryColor,
-                      borderRightColor: `${primaryColor}aa`,
-                      borderBottomColor: `${primaryColor}44`,
+                      borderRightColor: primaryColor,
+                      borderBottomColor: primaryColor,
                       animation: "spinPure 1.4s linear infinite",
                     }}
                   />
