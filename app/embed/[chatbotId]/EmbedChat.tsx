@@ -128,6 +128,7 @@ export default function EmbedChat({
   const manualStopRef = useRef(false); // True when user manually clicked mic to stop
   const userPausedRef = useRef(false); // True when user intentionally paused — prevents auto-restart
   const micPermissionGrantedRef = useRef(false);
+  const consultationEndedRef = useRef(false); // True after farewell response — prevents mic from restarting
   const voiceTranscriptEndRef = useRef<HTMLDivElement>(null);
 
   // Keep state refs updated on every render to solve stale closure bugs
@@ -136,6 +137,7 @@ export default function EmbedChat({
   const conversationIdRef = useRef(conversationId);
   conversationIdRef.current = conversationId;
   const startRecordingRef = useRef<() => void>(() => { }); // Stable ref to avoid dependency cascades
+  const handleEndAndResetRef = useRef<() => void>(() => { }); // Stable ref for end-of-consultation cleanup
   const isMutedRef = useRef(isMuted);
   isMutedRef.current = isMuted;
   const visitorNameRef = useRef(visitorName);
@@ -301,9 +303,9 @@ export default function EmbedChat({
           console.error("Speech recognition error:", event.error);
           if (event.error === "not-allowed") {
             setVoiceError("Microphone access denied. Please allow microphone permissions.");
-          } else if (event.error !== "no-speech" && event.error !== "aborted") {
-            setVoiceError("Speech recognition error: " + event.error);
           }
+          // All other errors (no-speech, network, aborted, audio-capture) are silently ignored
+          // to keep the conversation flow smooth — the auto-restart loop will retry.
         };
 
         recognition.onend = () => {
@@ -541,7 +543,8 @@ export default function EmbedChat({
           }
 
           if (!transcript || !transcript.trim()) {
-            setUserTranscript("Could not understand. Try again.");
+            // Silently go idle — the auto-restart loop will give the user another chance
+            setUserTranscript("");
             setVoiceState("idle");
             return;
           }
@@ -550,7 +553,7 @@ export default function EmbedChat({
           await submitVoiceMessage(transcript);
         } catch (err) {
           console.error("STT error:", err);
-          setVoiceError("Could not transcribe audio. Please try again.");
+          // Silently go idle instead of showing error — auto-restart will retry
           setVoiceState("idle");
         }
       };
@@ -749,8 +752,17 @@ export default function EmbedChat({
     } else {
       // Queue is empty. Check if stream is fully finished and we've processed all sentences.
       if (streamFinishedRef.current && nextIdx >= sentenceIndexRef.current) {
-        setVoiceState("idle");
         isAudioPlayingRef.current = false;
+        // If the consultation has ended, auto-terminate the voice session
+        if (consultationEndedRef.current) {
+          consultationEndedRef.current = false;
+          // Short delay so the user hears the farewell fully before the UI transitions
+          setTimeout(() => {
+            handleEndAndResetRef.current();
+          }, 1200);
+          return;
+        }
+        setVoiceState("idle");
       } else {
         // Stream is still loading but next sentence is not ready, show thinking/processing
         setVoiceState("thinking");
@@ -795,7 +807,13 @@ export default function EmbedChat({
       cleaned === "end consultation" ||
       cleaned === "end call" ||
       cleaned === "stop consultation" ||
-      cleaned === "quit consultation"
+      cleaned === "quit consultation" ||
+      cleaned === "thats all thank you" ||
+      cleaned === "thats all" ||
+      cleaned === "no thank you" ||
+      cleaned === "no thanks" ||
+      cleaned === "goodbye" ||
+      cleaned === "bye"
     );
   };
 
@@ -858,33 +876,29 @@ export default function EmbedChat({
     }
 
     // 7. Reset state and close voice mode
+    consultationEndedRef.current = false;
     setVoiceState("idle");
-    setVoiceSessionEnded(false);
-    setIsVoiceMode(false);
+    setVoiceSessionEnded(true);
 
     // 8. Cleanly reset conversation state for the next session
-    setConversationId(null);
-    setChatMessages([
-      {
-        id: "welcome",
-        role: "assistant",
-        text: getLocalizedWelcomeMessage(selectedLanguage, welcomeMessage),
-      },
-    ]);
     setUserTranscript("");
     setBotSpeechText("");
     setVoiceError(null);
     setChatError(null);
     setInput("");
-  }, [cleanupActiveRecording, selectedLanguage, welcomeMessage]);
+  }, [cleanupActiveRecording]);
+
+  // Keep handleEndAndResetRef always pointing to the latest version
+  handleEndAndResetRef.current = handleEndAndReset;
 
   // ── Voice: Submit transcribed message and speak response ──
   const submitVoiceMessage = async (messageText: string) => {
     if (isLoading || isStreaming) return;
 
     if (isEndChatOption(messageText)) {
-      handleEndAndReset();
-      return;
+      // Mark that the consultation is ending — the farewell TTS will trigger auto-cleanup
+      consultationEndedRef.current = true;
+      // Don't intercept — let the message go through to the AI so it can say a proper farewell
     }
 
     // Reset streaming audio queue state
@@ -1185,7 +1199,7 @@ export default function EmbedChat({
 
   // Auto-start recording when voice mode is activated (only if mic was already granted and user hasn't paused)
   useEffect(() => {
-    if (isVoiceMode && leadCaptured && voiceState === "idle" && micPermissionGrantedRef.current && !userPausedRef.current) {
+    if (isVoiceMode && leadCaptured && voiceState === "idle" && micPermissionGrantedRef.current && !userPausedRef.current && !consultationEndedRef.current) {
       const timer = setTimeout(() => startRecordingRef.current(), 500);
       return () => clearTimeout(timer);
     }
@@ -1287,8 +1301,8 @@ export default function EmbedChat({
     if (isLoading || isStreaming) return;
 
     if (isEndChatOption(messageText)) {
-      handleEndAndReset();
-      return;
+      // Mark consultation as ending — let the message go through so AI gives a farewell
+      consultationEndedRef.current = true;
     }
 
     // Detect and update language automatically based on user text
@@ -1530,6 +1544,11 @@ export default function EmbedChat({
       setIsLoading(false);
       setIsStreaming(false);
       abortRef.current = null;
+
+      // For text chat, just reset the ended flag (farewell message is visible in the chat)
+      if (consultationEndedRef.current) {
+        consultationEndedRef.current = false;
+      }
     }
   };
 
@@ -1976,6 +1995,8 @@ export default function EmbedChat({
                     setChatError(null);
                     setVoiceSessionEnded(false);
                     setVoiceState("idle");
+                    userPausedRef.current = false;
+                    consultationEndedRef.current = false;
                     setTimeout(() => startRecording(), 400);
                   }}
                   className="px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all text-white"
@@ -2327,48 +2348,7 @@ export default function EmbedChat({
                 {/* End Call Button */}
                 <button
                   onClick={() => {
-                    // Signal cancellation to prevent onstop from processing
-                    manualStopRef.current = true;
-                    userPausedRef.current = true;
-
-                    // Abort any in-flight chat/TTS requests
-                    abortRef.current?.abort();
-
-                    // Stop recording
-                    if (recognitionRef.current) {
-                      try {
-                        recognitionRef.current.onstart = null;
-                        recognitionRef.current.onresult = null;
-                        recognitionRef.current.onerror = null;
-                        recognitionRef.current.onend = null;
-                        recognitionRef.current.abort();
-                      } catch (e) { }
-                      recognitionRef.current = null;
-                    }
-                    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-                      mediaRecorderRef.current.stop();
-                    }
-                    // Stop all audio playback
-                    if (activeAudioRef.current) {
-                      activeAudioRef.current.pause();
-                      activeAudioRef.current = null;
-                    }
-                    // Clear audio queue
-                    audioQueueRef.current.forEach(a => { try { a.pause(); } catch { } });
-                    audioQueueRef.current = [];
-                    audioMapRef.current = {};
-                    isAudioPlayingRef.current = false;
-                    streamFinishedRef.current = true;
-                    sentTextLengthRef.current = 0;
-                    pcmChunksRef.current = [];
-                    cleanupActiveRecording();
-                    // Clear timers
-                    if (silenceTimerRef.current) {
-                      clearTimeout(silenceTimerRef.current);
-                      silenceTimerRef.current = null;
-                    }
-                    setVoiceState("idle");
-                    setVoiceSessionEnded(true);
+                    handleEndAndReset();
                   }}
                   className="px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all text-white"
                   style={{
