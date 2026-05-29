@@ -368,6 +368,24 @@ Do NOT call the 'show_options' tool. Ask a warm, professional question and let t
             stepNumber: z.number().min(1).max(totalSteps).describe("The step number to advance to.")
           }),
           execute: async ({ stepNumber }) => {
+            // Persist step advancement immediately (not deferred to onFinish)
+            // This prevents a race condition where a fast user click could trigger the
+            // next API call before the step was persisted — causing the AI to repeat the previous step.
+            if (config.conversationId) {
+              try {
+                await prisma.conversation.update({
+                  where: { id: config.conversationId },
+                  data: {
+                    metadata: {
+                      ...existingMeta,
+                      currentStep: stepNumber,
+                    },
+                  },
+                });
+              } catch (e) {
+                console.error("Failed to persist step advancement:", e);
+              }
+            }
             return { advanced: true, newStep: stepNumber };
           },
         }),
@@ -442,23 +460,8 @@ Do NOT call the 'show_options' tool. Ask a warm, professional question and let t
         // Fire all independent writes in parallel
         const writes: Promise<unknown>[] = [];
 
-        // 1. Update conversation step metadata (only if step changed and conversation already existed)
-        if (config.conversationId && nextStep !== currentStep) {
-          writes.push(
-            prisma.conversation.update({
-              where: { id: conversationId },
-              data: {
-                metadata: {
-                  ...existingMeta,
-                  currentStep: nextStep
-                }
-              }
-            })
-          );
-        } else if (config.conversationId) {
-          // Even if step didn't change, still update metadata if it exists
-          // (preserves any other metadata fields)
-        }
+        // Note: Step metadata update is handled immediately inside update_consultation_step's
+        // execute() to prevent race conditions. No need to update it again here.
 
         // 2. Save the user message
         if (lastUserMessage) {
