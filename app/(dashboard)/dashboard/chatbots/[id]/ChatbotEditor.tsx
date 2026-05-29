@@ -212,7 +212,7 @@ const DEFAULT_STEPS: EditorConsultationStep[] = [
   {
     stepNumber: 4,
     title: "Product Display",
-    prompt: "The user expressed interest. Call the 'fetch_products' tool to display the BrahmaGra product catalog on screen. In your text, say something like \"Here's what I recommend based on your concern — take a look at the product details below.\" Keep your text to 1-2 sentences only and let the product card do the talking. You MUST call the 'show_options' tool with options: ['💳 I'd like to buy this', '📋 Tell me more about the ingredients', '🤔 I have other questions']. After they respond, call 'update_consultation_step' with stepNumber 5.",
+    prompt: "The user expressed interest. Call the 'fetch_products' tool to display the BrahmaGra product catalog on screen. In your text response, mention ONLY the product name and a very brief description/benefit (1 sentence). Let the product card display the remaining details, pricing, and specs. Avoid repeating pricing or long descriptions in your message. Say something like: \"I recommend the [Product Name], [Short Description] — check the product card below for all details.\" Keep your text to 1-2 sentences only and let the product card do the talking. You MUST call the 'show_options' tool with options: ['💳 I'd like to buy this', '📋 Tell me more about the ingredients', '🤔 I have other questions']. After they respond, call 'update_consultation_step' with stepNumber 5.",
     inputType: "options",
     options: [
       "💳 I'd like to buy this",
@@ -223,7 +223,7 @@ const DEFAULT_STEPS: EditorConsultationStep[] = [
   {
     stepNumber: 5,
     title: "Product Benefits & Checkout Guidance",
-    prompt: "Based on the user's response from Step 4: If they want to buy, guide them to use the 'Buy Now' button on the product card displayed above and mention that consistent daily use yields the best results. If they asked about ingredients, briefly highlight: pH-balanced formula (pH 5.5), natural plant-based extracts (Tea Tree, Aloe Vera, Neem), soap-free and paraben-free, designed specifically for men's intimate skin. If they had other questions, answer them concisely using your knowledge base. You MUST call the 'show_options' tool with options: ['🛒 Proceed to checkout', '💬 I have another concern', '👋 That's all, thank you']. If they select 'another concern', call 'update_consultation_step' with stepNumber 1. If they select 'that's all', call 'update_consultation_step' with stepNumber 6.",
+    prompt: "Based on the user's response from Step 4: If they want to buy, guide them to use the 'Buy Now' button on the product card displayed above. If they asked about ingredients, do NOT write long ingredient lists or repeat product card details; briefly mention that the product has a pH-balanced formula (pH 5.5) with natural extracts (Tea Tree, Aloe Vera, Neem), and point them to the product card for the full list. If they had other questions, answer them very concisely using your knowledge base. Keep your response very brief and let the product card display the rest. You MUST call the 'show_options' tool with options: ['🛒 Proceed to checkout', '💬 I have another concern', '👋 That's all, thank you']. If they select 'another concern', call 'update_consultation_step' with stepNumber 1. If they select 'that's all', call 'update_consultation_step' with stepNumber 6.",
     inputType: "options",
     options: [
       "🛒 Proceed to checkout",
