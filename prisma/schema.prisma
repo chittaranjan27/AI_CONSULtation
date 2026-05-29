@@ -1,0 +1,698 @@
+// Brahma Graha - AI Consultation & Lead Conversion SaaS
+// Multi-tenant Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_OWNER
+  MANAGER
+  SUPPORT_AGENT
+  ANALYST
+}
+
+enum PlanType {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum ChatbotStatus {
+  ACTIVE
+  INACTIVE
+  DRAFT
+}
+
+enum ConversationStatus {
+  ACTIVE
+  CLOSED
+  HANDOFF
+  ARCHIVED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  WON
+  LOST
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum CrawlJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum AIProvider {
+  OPENAI
+  ANTHROPIC
+  GEMINI
+  GROQ
+  OPENROUTER
+}
+
+enum WidgetMode {
+  FLOATING
+  INLINE
+  FULLPAGE
+}
+
+enum WidgetPosition {
+  BOTTOM_RIGHT
+  BOTTOM_LEFT
+  TOP_RIGHT
+  TOP_LEFT
+}
+
+enum Channel {
+  WEBSITE
+  WHATSAPP
+  TELEGRAM
+  INSTAGRAM
+  MESSENGER
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+  INCOMPLETE
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+// ============================================
+// TENANCY & AUTH
+// ============================================
+
+model Tenant {
+  id                String             @id @default(cuid())
+  name              String
+  slug              String             @unique
+  domain            String?            @unique
+  logo              String?
+  plan              PlanType           @default(FREE)
+  branding          Json?              // { primaryColor, secondaryColor, font, etc. }
+  settings          Json?              // { defaultLanguage, supportedLanguages, etc. }
+  stripeCustomerId  String?            @unique
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  // Relations
+  users             User[]
+  chatbots          Chatbot[]
+  conversations     Conversation[]
+  leads             Lead[]
+  apiKeys           TenantApiKey[]
+  documents         Document[]
+  analyticsEvents   AnalyticsEvent[]
+  dailyStats        DailyStats[]
+  subscription      Subscription?
+  usageRecords      UsageRecord[]
+  invoices          Invoice[]
+  auditLogs         AuditLog[]
+  invitations       Invitation[]
+  integrations      Integration[]
+  products          Product[]
+
+  @@index([slug])
+  @@index([domain])
+}
+
+model User {
+  id              String    @id @default(cuid())
+  tenantId        String
+  email           String    @unique
+  name            String?
+  password        String?
+  avatar          String?
+  role            UserRole  @default(TENANT_OWNER)
+  emailVerified   DateTime?
+  otpCode         String?
+  otpExpiresAt    DateTime?
+  isActive        Boolean   @default(true)
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accounts        Account[]
+  sessions        Session[]
+  assignedConversations Conversation[] @relation("AssignedAgent")
+
+  @@index([tenantId])
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Invitation {
+  id        String           @id @default(cuid())
+  tenantId  String
+  email     String
+  role      UserRole         @default(SUPPORT_AGENT)
+  token     String           @unique
+  status    InvitationStatus @default(PENDING)
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([email])
+  @@index([token])
+}
+
+// ============================================
+// AI PROVIDER KEYS
+// ============================================
+
+model TenantApiKey {
+  id          String     @id @default(cuid())
+  tenantId    String
+  provider    AIProvider
+  encryptedKey String    @db.Text
+  label       String?
+  isActive    Boolean    @default(true)
+  lastUsedAt  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+}
+
+// ============================================
+// CHATBOT
+// ============================================
+
+model Chatbot {
+  id              String        @id @default(cuid())
+  tenantId        String
+  name            String
+  description     String?
+  systemPrompt    String        @db.Text
+  welcomeMessage  String?       @db.Text
+  aiProvider      AIProvider    @default(OPENAI)
+  model           String        @default("gpt-4o-mini")
+  temperature     Float         @default(0.7)
+  maxTokens       Int           @default(2048)
+  fallbackModel   String?
+  fallbackProvider AIProvider?
+  status          ChatbotStatus @default(DRAFT)
+  personality     Json?         // { tone, formality, humor, etc. }
+  language        String        @default("en")
+  supportedLanguages String[]   @default(["en"])
+  consultationSteps  Json?
+
+  // Widget Configuration
+  widgetMode      WidgetMode    @default(FLOATING)
+  widgetPosition  WidgetPosition @default(BOTTOM_RIGHT)
+  widgetConfig    Json?         // { colors, typography, icon, size, buttonStyles, css }
+
+  // Lead Capture Configuration
+  leadCaptureEnabled Boolean    @default(true)
+  leadCaptureFields  Json?      // { fields: [{name, type, required}] }
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations   Conversation[]
+  documents       Document[]
+  documentChunks  DocumentChunk[]
+  crawlJobs       CrawlJob[]
+  leads           Lead[]
+  dailyStats      DailyStats[]
+  products        Product[]
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// ============================================
+// CONVERSATIONS & MESSAGES
+// ============================================
+
+model Visitor {
+  id            String    @id @default(cuid())
+  fingerprint   String?
+  name          String?
+  email         String?
+  phone         String?
+  metadata      Json?     // { browser, os, location, referrer, etc. }
+  firstSeenAt   DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+
+  // Relations
+  conversations Conversation[]
+  leads         Lead[]
+
+  @@index([fingerprint])
+  @@index([email])
+}
+
+model Conversation {
+  id              String             @id @default(cuid())
+  tenantId        String
+  chatbotId       String
+  visitorId       String?
+  assignedAgentId String?
+  channel         Channel            @default(WEBSITE)
+  status          ConversationStatus @default(ACTIVE)
+  language        String             @default("en")
+  summary         String?            @db.Text
+  metadata        Json?              // { source, referrer, pageUrl, etc. }
+  rating          Int?               // 1-5 star rating
+  feedback        String?
+  tags            String[]           @default([])
+  startedAt       DateTime           @default(now())
+  endedAt         DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  // Relations
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chatbot         Chatbot            @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  visitor         Visitor?           @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+  assignedAgent   User?              @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  messages        Message[]
+  leadEvents      LeadEvent[]
+
+  @@index([tenantId])
+  @@index([chatbotId])
+  @@index([visitorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Message {
+  id              String      @id @default(cuid())
+  conversationId  String
+  role            MessageRole
+  content         String      @db.Text
+  inputTokens     Int         @default(0)
+  outputTokens    Int         @default(0)
+  totalTokens     Int         @default(0)
+  cost            Float       @default(0)
+  latencyMs       Int         @default(0)
+  provider        AIProvider?
+  model           String?
+  metadata        Json?       // { suggestions, actions, attachments, etc. }
+  createdAt       DateTime    @default(now())
+
+  // Relations
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+// ============================================
+// KNOWLEDGE BASE & RAG
+// ============================================
+
+model Document {
+  id          String         @id @default(cuid())
+  tenantId    String
+  chatbotId   String
+  filename    String
+  fileType    String         // pdf, docx, txt, csv, url
+  fileSize    Int            @default(0)
+  s3Key       String?
+  sourceUrl   String?
+  status      DocumentStatus @default(PENDING)
+  error       String?
+  chunkCount  Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chatbot     Chatbot        @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  chunks      DocumentChunk[]
+
+  @@index([tenantId])
+  @@index([chatbotId])
+  @@index([status])
+}
+
+model DocumentChunk {
+  id          String   @id @default(cuid())
+  documentId  String
+  chatbotId   String
+  content     String   @db.Text
+  embedding   Float[]  // pgvector alternative: store as float array
+  metadata    Json?    // { page, section, source, etc. }
+  tokenCount  Int      @default(0)
+  chunkIndex  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chatbot     Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([chatbotId])
+}
+
+model CrawlJob {
+  id              String          @id @default(cuid())
+  chatbotId       String
+  url             String
+  status          CrawlJobStatus  @default(PENDING)
+  pagesProcessed  Int             @default(0)
+  totalPages      Int             @default(0)
+  error           String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+
+  // Relations
+  chatbot         Chatbot         @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+
+  @@index([chatbotId])
+  @@index([status])
+}
+
+// ============================================
+// LEADS & CRM
+// ============================================
+
+model Lead {
+  id              String     @id @default(cuid())
+  tenantId        String
+  chatbotId       String?
+  visitorId       String?
+  name            String?
+  email           String?
+  phone           String?
+  company         String?
+  budget          String?
+  goals           String?    @db.Text
+  requirements    String?    @db.Text
+  preferredContact String?
+  score           Int        @default(0)  // 0-100 qualification score
+  status          LeadStatus @default(NEW)
+  source          String?    // chatbot, form, import
+  metadata        Json?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chatbot         Chatbot?   @relation(fields: [chatbotId], references: [id], onDelete: SetNull)
+  visitor         Visitor?   @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+  events          LeadEvent[]
+
+  @@index([tenantId])
+  @@index([chatbotId])
+  @@index([status])
+  @@index([email])
+  @@index([createdAt])
+}
+
+model LeadEvent {
+  id              String   @id @default(cuid())
+  leadId          String
+  conversationId  String?
+  type            String   // created, contacted, qualified, note, email_sent, etc.
+  data            Json?
+  createdAt       DateTime @default(now())
+
+  // Relations
+  lead            Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([conversationId])
+}
+
+// ============================================
+// ANALYTICS
+// ============================================
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatbotId   String?
+  visitorId   String?
+  eventType   String   // widget_open, chat_start, message_sent, lead_captured, cta_click, etc.
+  data        Json?
+  pageUrl     String?
+  userAgent   String?
+  ipHash      String?  // hashed for privacy
+  createdAt   DateTime @default(now())
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([chatbotId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model DailyStats {
+  id              String   @id @default(cuid())
+  tenantId        String
+  chatbotId       String?
+  date            DateTime @db.Date
+  conversations   Int      @default(0)
+  messages        Int      @default(0)
+  leadsCaptured   Int      @default(0)
+  widgetOpens     Int      @default(0)
+  avgResponseTime Float    @default(0)
+  avgDuration     Float    @default(0)
+  completionRate  Float    @default(0)
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  totalTokens     Int      @default(0)
+  totalCost       Float    @default(0)
+  returningUsers  Int      @default(0)
+  newUsers        Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  // Relations
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chatbot         Chatbot? @relation(fields: [chatbotId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, chatbotId, date])
+  @@index([tenantId])
+  @@index([date])
+}
+
+// ============================================
+// BILLING & SUBSCRIPTIONS
+// ============================================
+
+model Subscription {
+  id                    String             @id @default(cuid())
+  tenantId              String             @unique
+  plan                  PlanType           @default(FREE)
+  status                SubscriptionStatus @default(ACTIVE)
+  stripeSubscriptionId  String?            @unique
+  stripePriceId         String?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean            @default(false)
+  trialEndsAt           DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  // Relations
+  tenant                Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model UsageRecord {
+  id          String     @id @default(cuid())
+  tenantId    String
+  chatbotId   String?
+  provider    AIProvider
+  model       String
+  inputTokens Int        @default(0)
+  outputTokens Int       @default(0)
+  totalTokens Int        @default(0)
+  cost        Float      @default(0)
+  createdAt   DateTime   @default(now())
+
+  // Relations
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([provider])
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  tenantId        String
+  stripeInvoiceId String?  @unique
+  amount          Float
+  currency        String   @default("usd")
+  status          String   @default("draft") // draft, open, paid, void
+  pdfUrl          String?
+  periodStart     DateTime?
+  periodEnd       DateTime?
+  createdAt       DateTime @default(now())
+
+  // Relations
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// ============================================
+// INTEGRATIONS
+// ============================================
+
+model Integration {
+  id          String   @id @default(cuid())
+  tenantId    String
+  type        String   // google_sheets, hubspot, salesforce, calendly, slack, zapier, etc.
+  name        String
+  config      Json?    // { accessToken, refreshToken, webhookUrl, etc. } (encrypted)
+  isActive    Boolean  @default(true)
+  lastSyncAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, type])
+  @@index([tenantId])
+}
+
+// ============================================
+// SECURITY & AUDIT
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  action    String   // user.login, chatbot.create, lead.export, settings.update, etc.
+  entity    String?  // chatbot, lead, user, etc.
+  entityId  String?
+  metadata  Json?    // { ip, userAgent, changes: { before, after } }
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================
+// PRODUCTS (LOCAL CUSTOM CATALOG)
+// ============================================
+
+model Product {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?  @db.Text
+  price       Float
+  currency    String   @default("aed")
+  imageUrl    String?
+  category    String?  // e.g., "hair_care", "skin_care"
+  isActive    Boolean  @default(true)
+  checkoutUrl String?  // Versatile: Can be Stripe, PayPal, or any custom checkout link
+  chatbotId   String?  // Optional: Link to a specific chatbot
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chatbot     Chatbot? @relation(fields: [chatbotId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([category])
+  @@index([chatbotId])
+}

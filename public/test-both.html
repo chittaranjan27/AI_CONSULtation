@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brahma Graha Chatbot Test both Modes</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 0 auto; padding: 40px 20px; background: #fafafa; color: #111; }
+    .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 30px; }
+  </style>
+</head>
+<body>
+  <h1>Standalone Chatbot Embed Test</h1>
+  <p>This page embeds both the <strong>Inline Widget</strong> (in the card below) and the <strong>Floating Corner Widget</strong> (bottom right).</p>
+
+  <div class="card">
+    <h2>Inline Widget Chat</h2>
+    <!-- INLINE WIDGET EMBED -->
+    <script src="http://localhost:3000/widget.js" data-chatbot-id="cmpham00s000cf1p42jfclsfa" data-mode="inline"></script>
+  </div>
+
+  <div class="card">
+    <h2>Page Content</h2>
+    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+  </div>
+
+  <!-- FLOATING WIDGET EMBED -->
+  <script src="http://localhost:3000/widget.js" data-chatbot-id="cmpham00s000cf1p42jfclsfa" data-mode="floating" data-position="bottom-right"></script>
+</body>
+</html>
