@@ -787,9 +787,105 @@ export default function EmbedChat({
     }
   }, [playNextInQueue]);
 
+  // ── Voice: Check if the text matches end call/chat options ──
+  const isEndChatOption = (text: string): boolean => {
+    const cleaned = text.toLowerCase().replace(/[^\w\s]/g, "").trim();
+    return (
+      cleaned === "end chat" ||
+      cleaned === "end consultation" ||
+      cleaned === "end call" ||
+      cleaned === "stop consultation" ||
+      cleaned === "quit consultation"
+    );
+  };
+
+  // ── Voice: Stop STT/TTS, close voice flow, and reset consultation state cleanly ──
+  const handleEndAndReset = useCallback(() => {
+    // 1. Signal manual stop to prevent recorders from firing callbacks
+    manualStopRef.current = true;
+    userPausedRef.current = true; // Prevent any auto-record/auto-restart hooks from running
+
+    // 2. Abort any in-flight backend requests (chat or synthesis)
+    if (abortRef.current) {
+      try {
+        abortRef.current.abort();
+      } catch (e) {}
+    }
+
+    // 3. Stop microphone & MediaRecorder
+    cleanupActiveRecording();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {}
+    }
+
+    // 4. Stop STT (Speech Recognition) cleanly
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.abort();
+      } catch (e) {}
+      recognitionRef.current = null;
+    }
+
+    // 5. Stop TTS (Audio playing & Audio Queue)
+    if (activeAudioRef.current) {
+      try {
+        activeAudioRef.current.pause();
+      } catch (e) {}
+      activeAudioRef.current = null;
+    }
+    audioQueueRef.current.forEach((a) => {
+      try {
+        a.pause();
+      } catch (e) {}
+    });
+    audioQueueRef.current = [];
+    audioMapRef.current = {};
+    isAudioPlayingRef.current = false;
+    streamFinishedRef.current = true;
+    sentTextLengthRef.current = 0;
+    pcmChunksRef.current = [];
+
+    // 6. Clear silence timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+
+    // 7. Reset state and close voice mode
+    setVoiceState("idle");
+    setVoiceSessionEnded(false);
+    setIsVoiceMode(false);
+
+    // 8. Cleanly reset conversation state for the next session
+    setConversationId(null);
+    setChatMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        text: getLocalizedWelcomeMessage(selectedLanguage, welcomeMessage),
+      },
+    ]);
+    setUserTranscript("");
+    setBotSpeechText("");
+    setVoiceError(null);
+    setChatError(null);
+    setInput("");
+  }, [cleanupActiveRecording, selectedLanguage, welcomeMessage]);
+
   // ── Voice: Submit transcribed message and speak response ──
   const submitVoiceMessage = async (messageText: string) => {
     if (isLoading || isStreaming) return;
+
+    if (isEndChatOption(messageText)) {
+      handleEndAndReset();
+      return;
+    }
 
     // Reset streaming audio queue state
     audioMapRef.current = {};
@@ -1190,6 +1286,11 @@ export default function EmbedChat({
   const submitMessage = async (messageText: string) => {
     if (isLoading || isStreaming) return;
 
+    if (isEndChatOption(messageText)) {
+      handleEndAndReset();
+      return;
+    }
+
     // Detect and update language automatically based on user text
     let activeLang = selectedLanguageRef.current;
     if (/[\u0900-\u097F]/.test(messageText)) {
@@ -1559,8 +1660,10 @@ export default function EmbedChat({
         {leadCaptured && (
           <button
             onClick={() => {
-              setIsVoiceMode((v) => !v);
+              const nextMode = !isVoiceMode;
+              setIsVoiceMode(nextMode);
               setVoiceSessionEnded(false);
+              userPausedRef.current = !nextMode;
               // Stop any playing audio when toggling
               if (activeAudioRef.current) {
                 activeAudioRef.current.pause();
