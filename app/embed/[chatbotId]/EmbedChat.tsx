@@ -817,6 +817,22 @@ export default function EmbedChat({
     );
   };
 
+  // ── Voice: Check if AI's response suggestions signal the end of the consultation ──
+  const suggestionsContainEndIntent = (suggestions: string[]): boolean => {
+    return suggestions.some((opt) => {
+      const cleaned = opt.toLowerCase().replace(/[^\w\s]/g, "").trim();
+      return (
+        cleaned === "end chat" ||
+        cleaned === "end consultation" ||
+        cleaned === "end call" ||
+        cleaned.includes("start a new") ||
+        cleaned.includes("new consultation") ||
+        cleaned === "goodbye" ||
+        cleaned === "bye"
+      );
+    });
+  };
+
   // ── Voice: Stop STT/TTS, close voice flow, and reset consultation state cleanly ──
   const handleEndAndReset = useCallback(() => {
     // 1. Signal manual stop to prevent recorders from firing callbacks
@@ -1091,6 +1107,10 @@ export default function EmbedChat({
                     m.id === assistantId ? { ...m, suggestions } : m
                   )
                 );
+                // Auto-detect end of consultation from AI's farewell options
+                if (suggestions.length > 0 && suggestionsContainEndIntent(suggestions)) {
+                  consultationEndedRef.current = true;
+                }
               } else if (data.toolName === "fetch_products" && data.result) {
                 const products = Array.isArray(data.result) ? data.result : [];
                 setChatMessages((prev) =>
@@ -1135,6 +1155,10 @@ export default function EmbedChat({
                       m.id === assistantId ? { ...m, suggestions } : m
                     )
                   );
+                  // Auto-detect end of consultation from AI's farewell options
+                  if (suggestions.length > 0 && suggestionsContainEndIntent(suggestions)) {
+                    consultationEndedRef.current = true;
+                  }
                 } else if (toolName === "fetch_products" && output) {
                   const products = Array.isArray(output) ? output : [];
                   setChatMessages((prev) =>
@@ -1151,11 +1175,16 @@ export default function EmbedChat({
                 const result = data.result || data.output;
                 if (tName === "show_options" && result) {
                   console.log("[VOICE tool-result] show_options:", JSON.stringify(result), "isArray:", Array.isArray(result));
+                  const suggestions = Array.isArray(result) ? result : [];
                   setChatMessages((prev) =>
                     prev.map((m) =>
-                      m.id === assistantId ? { ...m, suggestions: Array.isArray(result) ? result : [] } : m
+                      m.id === assistantId ? { ...m, suggestions } : m
                     )
                   );
+                  // Auto-detect end of consultation from AI's farewell options
+                  if (suggestions.length > 0 && suggestionsContainEndIntent(suggestions)) {
+                    consultationEndedRef.current = true;
+                  }
                 } else if (tName === "fetch_products" && result) {
                   setChatMessages((prev) =>
                     prev.map((m) =>
@@ -2504,8 +2533,7 @@ export default function EmbedChat({
                                   background: `${primaryColor}08`,
                                   opacity: isLastAssistant ? 1 : 0.5,
                                   cursor: isLastAssistant ? "pointer" : "default",
-                                  animation: isLastAssistant ? "fadeInUp 0.25s ease-out both" : "none",
-                                  animationDelay: isLastAssistant ? `${optIdx * 0.06}s` : "0s",
+                                  animation: isLastAssistant ? `fadeInUp 0.25s ease-out ${optIdx * 0.06}s both` : "none",
                                 }}
                               >
                                 <span
@@ -2720,8 +2748,7 @@ export default function EmbedChat({
                         key={message.id}
                         className={`flex gap-2.5 ${message.role === "user" ? "justify-end" : "justify-start"}`}
                         style={{
-                          animation: "fadeInUp 0.25s ease-out both",
-                          animationDelay: `${Math.min(index * 0.03, 0.15)}s`,
+                          animation: `fadeInUp 0.25s ease-out ${Math.min(index * 0.03, 0.15)}s both`,
                         }}
                       >
                         {/* Bot Avatar */}
@@ -2784,8 +2811,7 @@ export default function EmbedChat({
                                       borderColor: `${primaryColor}35`,
                                       color: "var(--text-primary)",
                                       background: `${primaryColor}08`,
-                                      animationDelay: isLatest ? `${optIdx * 0.06}s` : "0s",
-                                      animation: isLatest ? "fadeInUp 0.25s ease-out both" : "none",
+                                      animation: isLatest ? `fadeInUp 0.25s ease-out ${optIdx * 0.06}s both` : "none",
                                     }}
                                     onMouseEnter={(e) => {
                                       if (!isLatest) return;
@@ -2851,8 +2877,7 @@ export default function EmbedChat({
                                       borderColor: `${primaryColor}20`,
                                       background: "var(--bg-secondary)",
                                       boxShadow: `0 2px 12px ${primaryColor}08`,
-                                      animation: "fadeInUp 0.3s ease-out both",
-                                      animationDelay: `${pIdx * 0.08}s`,
+                                      animation: `fadeInUp 0.3s ease-out ${pIdx * 0.08}s both`,
                                     }}
                                   >
                                     {/* Product Image */}
@@ -2976,8 +3001,7 @@ export default function EmbedChat({
                                 className="w-1.5 h-1.5 rounded-full"
                                 style={{
                                   background: primaryColor,
-                                  animation: `typingBounce 1.2s infinite ease-in-out`,
-                                  animationDelay: `${delay}ms`,
+                                  animation: `typingBounce 1.2s infinite ease-in-out ${delay}ms`,
                                   opacity: 0.85,
                                 }}
                               />
