@@ -155,14 +155,17 @@ export default function EmbedChat({
 
   const detectAndSyncLanguage = useCallback((text: string) => {
     if (!text) return;
+    const cleanText = text.replace(/د\.إ/g, "").trim();
+    if (!cleanText) return;
+
     // Devanagari script for Hindi
-    if (/[\u0900-\u097F]/.test(text)) {
+    if (/[\u0900-\u097F]/.test(cleanText)) {
       if (supportedLanguages.includes("hi") && selectedLanguageRef.current !== "hi") {
         setSelectedLanguage("hi");
       }
     }
     // Arabic script for Arabic and Urdu
-    else if (/[\u0600-\u06FF]/.test(text)) {
+    else if (/[\u0600-\u06FF]/.test(cleanText)) {
       const hasUrdu = supportedLanguages.includes("ur");
       const hasArabic = supportedLanguages.includes("ar");
 
@@ -173,7 +176,7 @@ export default function EmbedChat({
         detected = "ar";
       } else if (hasUrdu && hasArabic) {
         // Urdu specific characters check: چ, پ, گ, ڈ, ڑ, ں, ہ, ے
-        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(text)) {
+        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(cleanText)) {
           detected = "ur";
         } else {
           detected = "ar";
@@ -811,12 +814,13 @@ export default function EmbedChat({
 
     // Detect and update language automatically based on user voice text
     let activeLang = selectedLanguageRef.current;
-    if (/[\u0900-\u097F]/.test(messageText)) {
+    const cleanMsgText = messageText.replace(/د\.إ/g, "").trim();
+    if (/[\u0900-\u097F]/.test(cleanMsgText)) {
       if (supportedLanguages.includes("hi")) {
         activeLang = "hi";
         setSelectedLanguage("hi");
       }
-    } else if (/[\u0600-\u06FF]/.test(messageText)) {
+    } else if (/[\u0600-\u06FF]/.test(cleanMsgText)) {
       const hasUrdu = supportedLanguages.includes("ur");
       const hasArabic = supportedLanguages.includes("ar");
       if (hasUrdu && !hasArabic) {
@@ -826,7 +830,7 @@ export default function EmbedChat({
         activeLang = "ar";
         setSelectedLanguage("ar");
       } else if (hasUrdu && hasArabic) {
-        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(messageText)) {
+        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(cleanMsgText)) {
           activeLang = "ur";
           setSelectedLanguage("ur");
         } else {
@@ -1169,12 +1173,13 @@ export default function EmbedChat({
 
     // Detect and update language automatically based on user text
     let activeLang = selectedLanguageRef.current;
-    if (/[\u0900-\u097F]/.test(messageText)) {
+    const cleanMsgText = messageText.replace(/د\.إ/g, "").trim();
+    if (/[\u0900-\u097F]/.test(cleanMsgText)) {
       if (supportedLanguages.includes("hi")) {
         activeLang = "hi";
         setSelectedLanguage("hi");
       }
-    } else if (/[\u0600-\u06FF]/.test(messageText)) {
+    } else if (/[\u0600-\u06FF]/.test(cleanMsgText)) {
       const hasUrdu = supportedLanguages.includes("ur");
       const hasArabic = supportedLanguages.includes("ar");
       if (hasUrdu && !hasArabic) {
@@ -1184,7 +1189,7 @@ export default function EmbedChat({
         activeLang = "ar";
         setSelectedLanguage("ar");
       } else if (hasUrdu && hasArabic) {
-        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(messageText)) {
+        if (/[\u067E\u0686\u0688\u0691\u06AF\u06BA\u06C1\u06D2]/.test(cleanMsgText)) {
           activeLang = "ur";
           setSelectedLanguage("ur");
         } else {
