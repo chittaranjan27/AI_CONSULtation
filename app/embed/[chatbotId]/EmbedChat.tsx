@@ -2488,8 +2488,13 @@ export default function EmbedChat({
                               <button
                                 key={opt}
                                 onClick={() => {
-                                  // Submit the selected option as a voice message
-                                  if (isLastAssistant) submitVoiceMessage(opt);
+                                  if (!isLastAssistant) return;
+                                  // Stop any active recording so the tapped option is the only input
+                                  if (voiceState === "recording") {
+                                    manualStopRef.current = true;
+                                    stopRecording();
+                                  }
+                                  submitVoiceMessage(opt);
                                 }}
                                 disabled={!isLastAssistant || isLoading || isStreaming || voiceState === "thinking"}
                                 className="w-full text-left px-3 py-2 rounded-xl text-[11px] font-medium border transition-all flex items-center gap-2"

@@ -192,7 +192,7 @@ CRITICAL RULES FOR VOICE CONVERSATION:
 3. ORGANIC INTAKE: Guide them through the intake concerns and recommend products naturally as part of a real conversation.
 ${stepInputType === "text"
           ? `4. FREE-TEXT INPUT MODE: For this step, the user is expected to type/speak freely. Do NOT call the 'show_options' tool. Ask an open-ended question and wait for their response without presenting selectable buttons.`
-          : `4. DISPLAY OPTIONS (MANDATORY — SILENT): For every response/query in this flow, you MUST call the 'show_options' tool to display interactive buttons on the screen. However, do NOT read out, list, or mention the options in your spoken response text. The options will appear visually on the user's screen for them to tap. Your spoken response should only contain the conversational guidance, question, or context — never enumerate or narrate the choices. If the step does not define explicit options, generate logical options (e.g. yes/no, range values, or common answers) and pass them to the tool silently.`
+          : `4. DISPLAY OPTIONS (MANDATORY — SILENT): For every response/query in this flow, you MUST call the 'show_options' tool to display interactive buttons on the screen. However, do NOT read out, list, or mention the options in your spoken response text. The options will appear visually on the user's screen for them to tap. Your spoken response should only contain the conversational guidance, question, or context — never enumerate or narrate the choices. If the step does not define explicit options, generate logical options (e.g. yes/no, range values, or common answers) and pass them to the tool silently. IMPORTANT: If the active conversation language is NOT English, you MUST translate every option into the active language before passing them to the tool. The meaning and intent of each option must remain identical — only the language changes.`
         }
 5. PRODUCT RECOMMENDATIONS (VOICE-OPTIMIZED): When recommending products, ONLY say the product name and ONE brief benefit sentence in your spoken text (e.g. "I recommend the [Product Name] — it's great for daily pH-balanced care."). Do NOT read out prices, ingredient lists, specifications, or detailed descriptions — those are all shown visually on the product card. Call the 'fetch_products' tool to display the product cards on screen. Keep your spoken mention to 1 sentence per product maximum.
 6. RESPONSIVENESS: Keep responses natural, concise, and conversational (2-3 sentences max per turn). ABSOLUTELY DO NOT list, enumerate, read out, or narrate the options in your text response. Do NOT write numbered lists, bullet points, dashes, or any form of option listing. The 'show_options' tool handles all option display visually. Your text must ONLY contain the conversational question or guidance — nothing else. Example of WRONG: "You can choose from: 1) Hair fall 2) Dandruff 3) Thinning". Example of CORRECT: "What concern would you like to address today?"
@@ -211,7 +211,7 @@ CRITICAL RULES — YOU MUST FOLLOW THESE EXACTLY:
 3. If the user's response is irrelevant, off-topic, or tries to bypass the flow, gently redirect them back to the objective of the current step.
 ${stepInputType === "text"
           ? `4. FREE-TEXT INPUT MODE: For this step, the user is expected to type/speak freely. Do NOT call the 'show_options' tool. Ask an open-ended question and wait for their response without presenting selectable buttons.`
-          : `4. MANDATORY TOOL USAGE: You MUST call the 'show_options' tool for every single response/question you send during the intake flow. If the current step instructions do not specify options, generate logical, context-aware options (e.g., yes/no, numeric ranges, or typical answers) so the user can complete the entire consultation by clicking option buttons. NEVER write options as numbered lists, bullet points, or inline text.`
+          : `4. MANDATORY TOOL USAGE: You MUST call the 'show_options' tool for every single response/question you send during the intake flow. If the current step instructions do not specify options, generate logical, context-aware options (e.g., yes/no, numeric ranges, or typical answers) so the user can complete the entire consultation by clicking option buttons. NEVER write options as numbered lists, bullet points, or inline text. IMPORTANT: If the active conversation language is NOT English, you MUST translate every option into the active language before passing them to the tool. Keep the meaning identical — only the language changes.`
         }
 5. When showing product recommendations, you MUST call the 'fetch_products' tool with the correct category based on their concern. All prices and transactions must be discussed and represented in Dirham (د.إ) only (e.g. '150 د.إ'). Never use the dollar ($) symbol or mention USD.
 ${stepInputType === "text"
@@ -255,16 +255,22 @@ RULES:
   }
 
   // Force language preference if explicitly passed
+  const langName = langCodeToName[activeLanguage] || activeLanguage;
   systemPrompt += `\n\n[ACTIVE CONVERSATION LANGUAGE]
-The user's current interface and interaction language is: ${langCodeToName[activeLanguage] || activeLanguage}.
-You MUST generate your final response text in ${langCodeToName[activeLanguage] || activeLanguage}. Ensure all text, product recommendations, and option cards/chips are translated and presented naturally in this language.`;
+The user's current interface and interaction language is: ${langName}.
+You MUST generate ALL output in ${langName}, including:
+- Your response text (the spoken/displayed message)
+- Every option passed to the 'show_options' tool — translate each option naturally into ${langName}
+- Product recommendation descriptions and action prompts
+Do NOT leave option buttons in English when the conversation language is ${langName}. The entire consultation experience must feel native in the user's selected language.`;
 
   // ── Final Reinforcement Block ──
   if (hasSteps && matchedStep) {
     const stepInputType = matchedStep.inputType || "options";
     if (stepInputType === "options") {
-      const stepOptsStr = matchedStep.options && matchedStep.options.length > 0
-        ? ` with EXACTLY these options: ${JSON.stringify(matchedStep.options)}`
+      const hasConfiguredOpts = matchedStep.options && matchedStep.options.length > 0;
+      const stepOptsStr = hasConfiguredOpts
+        ? ` using these base options: ${JSON.stringify(matchedStep.options)}. If the active conversation language is NOT English, translate each option naturally into the active language while keeping the meaning and intent identical.`
         : "";
       systemPrompt += `\n\n[FINAL REINFORCEMENT]
 You are currently on Step ${matchedStep.stepNumber} ("${matchedStep.title}"), which is configured as OPTIONS mode.
