@@ -102,13 +102,23 @@
     "/* Responsive */",
     "@media(max-width:640px){",
     "  .bg-widget-frame{",
-    "    width:100vw!important;height:100vh!important;max-height:100vh!important;",
+    "    width:100vw!important;height:100vh!important;height:100dvh!important;max-height:100vh!important;max-height:100dvh!important;",
     "    top:0!important;left:0!important;right:0!important;bottom:0!important;",
     "    border-radius:0!important;",
     "  }",
     "  .bg-widget-btn.bg-open-mobile{display:none!important;}",
     "  .bg-widget-inline-wrap{min-height:500px!important;}",
     "  .bg-widget-inline-wrap iframe{height:500px!important;border-radius:12px;}",
+    "  /* Inline widget fullscreen mobile */",
+    "  .bg-widget-inline-wrap.bg-inline-fullscreen{",
+    "    position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;",
+    "    width:100vw!important;height:100vh!important;height:100dvh!important;",
+    "    max-width:none!important;margin:0!important;z-index:999999!important;background:#fff!important;",
+    "  }",
+    "  .bg-widget-inline-wrap.bg-inline-fullscreen iframe{",
+    "    width:100%!important;height:100%!important;",
+    "    border:none!important;border-radius:0!important;box-shadow:none!important;",
+    "  }",
     "}",
   ].join("\n");
   document.head.appendChild(style);
@@ -146,6 +156,15 @@
         insertIntoBody();
       }
     }
+
+    window.addEventListener("message", function (e) {
+      if (e.data === "bg-inline-maximize") {
+        wrap.classList.add("bg-inline-fullscreen");
+      }
+      if (e.data === "bg-inline-minimize") {
+        wrap.classList.remove("bg-inline-fullscreen");
+      }
+    });
 
   } else {
     // ===== FLOATING MODE =====

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
+import { invalidateChatbotCache } from "@/lib/db/cache";
 
 export async function GET() {
   try {
@@ -157,6 +158,8 @@ export async function DELETE(req: Request) {
         tenantId: session.user.tenantId,
       },
     });
+
+    invalidateChatbotCache(id);
 
     return NextResponse.json(chatbot);
   } catch (error) {

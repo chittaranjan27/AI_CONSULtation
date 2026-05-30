@@ -89,7 +89,15 @@ export default function EmbedChat({
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
 
+  const [isInlineMaximized, setIsInlineMaximized] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState(language);
+
+  const triggerInlineMaximize = useCallback(() => {
+    if (mode === "inline") {
+      setIsInlineMaximized(true);
+      window.parent.postMessage("bg-inline-maximize", "*");
+    }
+  }, [mode]);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const selectedLanguageRef = useRef(selectedLanguage);
   selectedLanguageRef.current = selectedLanguage;
@@ -154,6 +162,31 @@ export default function EmbedChat({
   const isAudioPlayingRef = useRef(false);
   const sentTextLengthRef = useRef(0);
   const streamFinishedRef = useRef(false);
+
+  // ── Analytics: Fire-and-forget event tracking ──
+  const trackEvent = useCallback((eventType: string, data?: Record<string, unknown>) => {
+    fetch("/api/analytics/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chatbotId,
+        conversationId: conversationIdRef.current,
+        eventType,
+        data,
+        pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      }),
+    }).catch(() => { }); // Silent failure — never block UX
+  }, [chatbotId]);
+
+  // Track widget_open on mount
+  useEffect(() => {
+    trackEvent("widget_open");
+
+    // Auto-maximize inline widget on mobile devices by default
+    if (mode === "inline" && window.innerWidth < 640) {
+      triggerInlineMaximize();
+    }
+  }, [trackEvent, mode, triggerInlineMaximize]);
 
   const detectAndSyncLanguage = useCallback((text: string) => {
     if (!text) return;
@@ -238,6 +271,7 @@ export default function EmbedChat({
   // ── Voice: Start Recording with Silence Detection ──
   const startRecording = useCallback(async () => {
     try {
+      trackEvent("voice_start");
       setVoiceError(null);
       // Stop any playing audio
       if (activeAudioRef.current) {
@@ -516,11 +550,19 @@ export default function EmbedChat({
         // Build WAV directly from raw PCM — no WebM decoding needed
         const wavBlob = buildWavFromPcm(finalSamples, targetRate);
 
+        // Compute audio duration in seconds for usage tracking
+        const audioDuration = finalSamples.length / targetRate;
+
         // Helper: attempt STT call with status awareness
         const attemptSTT = async (blob: Blob, filename: string): Promise<{ transcript: string | null; status: number }> => {
           const fd = new FormData();
           fd.append("audio", blob, filename);
           fd.append("language", selectedLanguageRef.current);
+          fd.append("chatbotId", chatbotId);
+          fd.append("duration", audioDuration.toFixed(2));
+          if (conversationIdRef.current) {
+            fd.append("conversationId", conversationIdRef.current);
+          }
           const res = await fetch("/api/voice/transcribe", {
             method: "POST",
             body: fd,
@@ -778,7 +820,12 @@ export default function EmbedChat({
       const res = await fetch("/api/voice/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, language: selectedLanguageRef.current }),
+        body: JSON.stringify({
+          text,
+          language: selectedLanguageRef.current,
+          chatbotId,
+          conversationId: conversationIdRef.current,
+        }),
       });
 
       if (!res.ok) throw new Error("TTS chunk synthesis failed on backend");
@@ -835,6 +882,7 @@ export default function EmbedChat({
 
   // ── Voice: Stop STT/TTS, close voice flow, and reset consultation state cleanly ──
   const handleEndAndReset = useCallback(() => {
+    trackEvent("voice_end");
     // 1. Signal manual stop to prevent recorders from firing callbacks
     manualStopRef.current = true;
     userPausedRef.current = true; // Prevent any auto-record/auto-restart hooks from running
@@ -843,7 +891,7 @@ export default function EmbedChat({
     if (abortRef.current) {
       try {
         abortRef.current.abort();
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 3. Stop microphone & MediaRecorder
@@ -851,7 +899,7 @@ export default function EmbedChat({
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       try {
         mediaRecorderRef.current.stop();
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 4. Stop STT (Speech Recognition) cleanly
@@ -862,7 +910,7 @@ export default function EmbedChat({
         recognitionRef.current.onerror = null;
         recognitionRef.current.onend = null;
         recognitionRef.current.abort();
-      } catch (e) {}
+      } catch (e) { }
       recognitionRef.current = null;
     }
 
@@ -870,13 +918,13 @@ export default function EmbedChat({
     if (activeAudioRef.current) {
       try {
         activeAudioRef.current.pause();
-      } catch (e) {}
+      } catch (e) { }
       activeAudioRef.current = null;
     }
     audioQueueRef.current.forEach((a) => {
       try {
         a.pause();
-      } catch (e) {}
+      } catch (e) { }
     });
     audioQueueRef.current = [];
     audioMapRef.current = {};
@@ -1043,7 +1091,9 @@ export default function EmbedChat({
 
       const headerConvId = response.headers.get("X-Conversation-Id");
       if (headerConvId && !conversationIdRef.current) {
+        conversationIdRef.current = headerConvId;
         setConversationId(headerConvId);
+        trackEvent("chat_start", { mode: "voice" });
       }
 
       const reader = response.body?.getReader();
@@ -1306,6 +1356,7 @@ export default function EmbedChat({
     e.preventDefault();
     if (!visitorEmail || !visitorPhone) return;
 
+    triggerInlineMaximize();
     setIsCapturing(true);
     try {
       await fetch("/api/leads", {
@@ -1398,6 +1449,7 @@ export default function EmbedChat({
       const headerConvId = response.headers.get("X-Conversation-Id");
       if (headerConvId && !conversationId) {
         setConversationId(headerConvId);
+        trackEvent("chat_start", { mode: "text" });
       }
 
       const reader = response.body?.getReader();
@@ -1585,11 +1637,13 @@ export default function EmbedChat({
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || isLoading || isStreaming) return;
+    triggerInlineMaximize();
     setInput("");
     await submitMessage(trimmed);
   };
 
   const handleSuggestionClick = async (optionText: string) => {
+    triggerInlineMaximize();
     await submitMessage(optionText);
   };
 
@@ -1609,6 +1663,7 @@ export default function EmbedChat({
           background: "linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-secondary) 100%)",
           borderBottom: "1px solid var(--border-primary)",
           boxShadow: "0 2px 12px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.04)",
+          paddingTop: mode !== "inline" ? "calc(env(safe-area-inset-top, 0px) + 12px)" : "12px",
         }}
         className="flex items-center gap-3 px-4 py-3 shrink-0"
       >
@@ -1679,6 +1734,7 @@ export default function EmbedChat({
                       onClick={() => {
                         setSelectedLanguage(lang.code);
                         setShowLangMenu(false);
+                        trackEvent("language_change", { from: selectedLanguage, to: lang.code });
                         // Update the welcome message if the user hasn't typed anything yet
                         if (chatMessages.length === 1 && chatMessages[0].id === "welcome") {
                           setChatMessages([{
@@ -1708,6 +1764,7 @@ export default function EmbedChat({
         {leadCaptured && (
           <button
             onClick={() => {
+              triggerInlineMaximize();
               const nextMode = !isVoiceMode;
               setIsVoiceMode(nextMode);
               setVoiceSessionEnded(false);
@@ -1752,6 +1809,7 @@ export default function EmbedChat({
           </button>
         )}
 
+
         {mode !== "inline" && (
           <button
             onClick={handleClose}
@@ -1773,7 +1831,7 @@ export default function EmbedChat({
 
       {/* ── Lead Capture Form ── */}
       {!leadCaptured && (
-        <div className="flex-1 flex items-center justify-center p-6 relative overflow-hidden" style={{ background: "var(--bg-primary)" }}>
+        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] p-6 relative z-10 flex flex-col justify-start sm:justify-center items-center">
           {/* Watermark Background Overlay */}
           {widgetConfig?.backgroundImageUrl && (
             <div
@@ -1787,7 +1845,7 @@ export default function EmbedChat({
               }}
             />
           )}
-          <div className="w-full max-w-[300px] space-y-5 text-center">
+          <div className="w-full max-w-[300px] my-auto py-4 space-y-5 text-center">
             {/* Icon */}
             <div
               className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center"
@@ -1928,7 +1986,10 @@ export default function EmbedChat({
               </button>
               <button
                 type="button"
-                onClick={() => setLeadCaptured(true)}
+                onClick={() => {
+                  setLeadCaptured(true);
+                  triggerInlineMaximize();
+                }}
                 className="w-full text-[11px] transition-colors py-1"
                 style={{ color: "var(--text-muted)" }}
                 onMouseEnter={(e) => {
@@ -2064,6 +2125,7 @@ export default function EmbedChat({
             style={{
               background: "var(--bg-elevated)",
               borderTop: "1.5px solid var(--border-primary)",
+              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
             }}
             className="px-4 py-2 shrink-0"
           >
@@ -2080,7 +2142,7 @@ export default function EmbedChat({
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                {widgetConfig?.poweredBy || "AI Consultation"}
+                {widgetConfig?.poweredBy || "AI Consultation BY NMC"}
               </span>
             </p>
           </div>
@@ -2088,619 +2150,643 @@ export default function EmbedChat({
       )}
 
       {/* ── Voice Assistant Mode (Active) ── */}
-      {leadCaptured && isVoiceMode && !voiceSessionEnded && (
-        <>
-          <div
-            className={`flex-1 flex ${mode === "inline" ? "flex-row" : "flex-col"} relative overflow-hidden`}
-            style={{
-              background: "linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%)",
-              animation: "fadeInUp 0.35s ease-out both",
-            }}
-          >
-            {/* Watermark Background Overlay */}
-            {widgetConfig?.backgroundImageUrl && (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  backgroundImage: `url(${widgetConfig.backgroundImageUrl})`,
-                  backgroundPosition: "center",
-                  backgroundRepeat: "no-repeat",
-                  backgroundSize: "cover",
-                  opacity: 0.15,
-                }}
-              />
-            )}
-            {/* Animated Background Orbs */}
+      {leadCaptured && isVoiceMode && !voiceSessionEnded && (() => {
+        // Find the most recent assistant message from the chat history
+        const lastAssistantMsg = [...chatMessages].reverse().find((m) => m.role === "assistant");
+        const activeSuggestions = lastAssistantMsg?.suggestions || [];
+        const activeProducts = lastAssistantMsg?.products || [];
+        const lastAssistantText = lastAssistantMsg?.text || "";
+
+        return (
+          <>
             <div
-              className="absolute inset-0 overflow-hidden pointer-events-none"
-              style={{ opacity: 0.4 }}
+              className={`flex-grow flex ${mode === "inline" ? "flex-col sm:flex-row" : "flex-col"} relative overflow-hidden`}
+              style={{
+                background: "linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%)",
+                animation: "fadeInUp 0.35s ease-out both",
+              }}
             >
-              <div
-                className="absolute rounded-full"
-                style={{
-                  width: 200,
-                  height: 200,
-                  top: "10%",
-                  left: "-10%",
-                  background: `radial-gradient(circle, ${primaryColor}20 0%, transparent 70%)`,
-                  animation: "voiceFloat 8s ease-in-out infinite",
-                }}
-              />
-              <div
-                className="absolute rounded-full"
-                style={{
-                  width: 160,
-                  height: 160,
-                  bottom: "15%",
-                  right: "-5%",
-                  background: `radial-gradient(circle, ${primaryColor}15 0%, transparent 70%)`,
-                  animation: "voiceFloat 6s ease-in-out infinite reverse",
-                }}
-              />
-            </div>
-
-            {/* ── Left / Center: Mic + Controls ── */}
-            <div
-              className={`flex flex-col items-center z-10 ${mode === "inline"
-                ? "w-1/2 h-full border-r py-6 justify-center"
-                : "w-full flex-1 justify-center min-h-0"
-                }`}
-              style={mode === "inline" ? { borderColor: "var(--border-primary)" } : {}}
-            >
-              {/* Status Text & Indicators */}
-              <div className="text-center mb-8 z-10 flex flex-col items-center justify-center">
-                <div className="flex items-center gap-2 mb-1.5">
-                  {voiceState === "recording" && (
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                    </span>
-                  )}
-                  {voiceState === "thinking" && (
-                    <Sparkles className="w-3.5 h-3.5 animate-spin" style={{ color: primaryColor, animationDuration: '3s' }} />
-                  )}
-                  {voiceState === "speaking" && (
-                    <Volume2 className="w-3.5 h-3.5 animate-pulse text-emerald-500" />
-                  )}
-                  <p
-                    className="text-xs font-bold uppercase tracking-[0.15em]"
-                    style={{
-                      color: voiceState === "recording"
-                        ? "#ef4444"
-                        : voiceState === "thinking"
-                          ? primaryColor
-                          : voiceState === "speaking"
-                            ? "#10b981"
-                            : "var(--text-tertiary)",
-                    }}
-                  >
-                    {voiceState === "idle" && "Ready"}
-                    {voiceState === "recording" && "Listening"}
-                    {voiceState === "thinking" && "Processing"}
-                    {voiceState === "speaking" && "Speaking"}
-                  </p>
-                </div>
-                <p
-                  className="text-[10.5px] font-medium"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {voiceState === "idle" && "Tap the microphone to begin"}
-                  {voiceState === "recording" && "Speak naturally now..."}
-                  {voiceState === "thinking" && "Consulting AI knowledge..."}
-                  {voiceState === "speaking" && `${botName} is responding`}
-                </p>
-              </div>
-
-              {/* Big Mic Button with Ripple Rings */}
-              <div className="relative z-10 mb-8 flex items-center justify-center w-28 h-28">
-                {/* Ripple rings when recording */}
-                {voiceState === "recording" && (
-                  <>
-                    <div
-                      className="absolute inset-0 rounded-full bg-red-500/10"
-                      style={{
-                        animation: "rippleSpread 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite",
-                      }}
-                    />
-                    <div
-                      className="absolute inset-0 rounded-full bg-red-500/5"
-                      style={{
-                        animation: "rippleSpread 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 0.6s",
-                      }}
-                    />
-                    <div
-                      className="absolute inset-0 rounded-full bg-red-500/5"
-                      style={{
-                        animation: "rippleSpread 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 1.2s",
-                      }}
-                    />
-                  </>
-                )}
-
-                {/* Ripple rings when speaking */}
-                {voiceState === "speaking" && (
-                  <>
-                    <div
-                      className="absolute inset-0 rounded-full bg-emerald-500/10"
-                      style={{
-                        animation: "rippleSpread 2.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite",
-                      }}
-                    />
-                    <div
-                      className="absolute inset-0 rounded-full bg-emerald-500/5"
-                      style={{
-                        animation: "rippleSpread 2.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 0.7s",
-                      }}
-                    />
-                  </>
-                )}
-
-                {/* Thinking gradient aura border */}
-                {voiceState === "thinking" && (
-                  <div
-                    className="absolute inset-[4px] rounded-full"
-                    style={{
-                      border: "3.5px solid transparent",
-                      borderTopColor: primaryColor,
-                      borderRightColor: primaryColor,
-                      borderBottomColor: primaryColor,
-                      animation: "spinPure 1.4s linear infinite",
-                    }}
-                  />
-                )}
-
-                {/* Main Mic Button */}
-                <button
-                  onClick={toggleMic}
-                  disabled={voiceState === "thinking"}
-                  className="relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 disabled:opacity-90"
-                  style={{
-                    background:
-                      voiceState === "recording"
-                        ? "linear-gradient(135deg, #ef4444, #dc2626)"
-                        : voiceState === "speaking"
-                          ? "linear-gradient(135deg, #10b981, #059669)"
-                          : voiceState === "thinking"
-                            ? "var(--bg-secondary)"
-                            : `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
-                    border: voiceState === "thinking" ? `1px solid var(--border-primary)` : "none",
-                    boxShadow:
-                      voiceState === "recording"
-                        ? "0 8px 32px rgba(239,68,68,0.3)"
-                        : voiceState === "speaking"
-                          ? "0 8px 32px rgba(16,185,129,0.3)"
-                          : voiceState === "thinking"
-                            ? "0 4px 16px rgba(0,0,0,0.05)"
-                            : `0 8px 32px ${primaryColor}30`,
-                    animation: voiceState === "recording" ? "voicePulse 2s ease-in-out infinite" : "none",
-                  }}
-                >
-                  {voiceState === "recording" ? (
-                    <MicOff className="w-8 h-8 text-white" />
-                  ) : voiceState === "thinking" ? (
-                    <Sparkles className="w-8 h-8 animate-pulse" style={{ color: primaryColor }} />
-                  ) : voiceState === "speaking" ? (
-                    <Volume2 className="w-8 h-8 text-white" />
-                  ) : (
-                    <Mic className="w-8 h-8 text-white" />
-                  )}
-                </button>
-              </div>
-
-              {/* Sound Wave Visualizer */}
-              <div className="flex items-end justify-center gap-1.5 h-10 mb-8 z-10">
-                {[...Array(13)].map((_, i) => {
-                  const multipliers = [0.35, 0.55, 0.75, 0.95, 1.15, 1.3, 1.4, 1.3, 1.15, 0.95, 0.75, 0.55, 0.35];
-                  const isRecording = voiceState === "recording";
-                  const isSpeaking = voiceState === "speaking";
-                  const isThinking = voiceState === "thinking";
-
-                  let barHeight = "6px";
-                  if (isRecording) {
-                    barHeight = `${Math.max(6, Math.min(36, (audioLevel / 40) * 32 * multipliers[i] + 4))}px`;
-                  } else if (isSpeaking) {
-                    barHeight = `${8 + Math.random() * 26 * multipliers[i]}px`;
-                  }
-
-                  return (
-                    <div
-                      key={i}
-                      className="w-1 rounded-full transition-all duration-100"
-                      style={{
-                        height: isThinking ? "16px" : barHeight,
-                        background:
-                          isRecording
-                            ? `linear-gradient(to top, #ef4444, #f87171)`
-                            : isSpeaking
-                              ? `linear-gradient(to top, #10b981, #34d399)`
-                              : `linear-gradient(to top, var(--text-muted), var(--text-tertiary))`,
-                        animation:
-                          isThinking
-                            ? `voiceWaveIdle 1.4s ease-in-out infinite alternate ${i * 0.08}s`
-                            : isSpeaking
-                              ? `voiceWave 0.6s ease-in-out infinite alternate ${i * 0.05}s`
-                              : "none",
-                        opacity: voiceState === "idle" ? 0.25 : 0.85,
-                      }}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* Voice Error */}
-              {voiceError && (
+              {/* Watermark Background Overlay */}
+              {widgetConfig?.backgroundImageUrl && (
                 <div
-                  className="px-4 py-2 rounded-xl text-xs text-center z-10 max-w-[85%] mb-4"
+                  className="absolute inset-0 pointer-events-none"
                   style={{
-                    background: "rgba(220, 38, 38, 0.12)",
-                    border: "1.5px solid rgba(248, 113, 113, 0.25)",
-                    color: "#f87171",
+                    backgroundImage: `url(${widgetConfig.backgroundImageUrl})`,
+                    backgroundPosition: "center",
+                    backgroundRepeat: "no-repeat",
+                    backgroundSize: "cover",
+                    opacity: 0.15,
                   }}
-                >
-                  ⚠️ {voiceError}
-                </div>
+                />
               )}
-
-              {/* Bottom Controls — always visible, pinned at bottom */}
-              <div className="flex items-center gap-3.5 z-10 shrink-0 pb-4">
-                {/* Mute Toggle */}
-                <button
-                  onClick={() => {
-                    setIsMuted((m) => !m);
-                    if (activeAudioRef.current) {
-                      activeAudioRef.current.pause();
-                      activeAudioRef.current = null;
-                      setVoiceState("idle");
-                    }
-                  }}
-                  className="p-2.5 rounded-xl transition-all"
-                  style={{
-                    background: isMuted
-                      ? "rgba(239,68,68,0.1)"
-                      : "var(--bg-tertiary)",
-                    border: isMuted
-                      ? "1.5px solid rgba(239,68,68,0.25)"
-                      : "1.5px solid var(--border-primary)",
-                    color: isMuted
-                      ? "#ef4444"
-                      : "var(--text-secondary)",
-                  }}
-                  title={isMuted ? "Unmute" : "Mute"}
-                >
-                  {isMuted ? (
-                    <VolumeX className="w-4 h-4" />
-                  ) : (
-                    <Volume2 className="w-4 h-4" />
-                  )}
-                </button>
-
-                {/* End Call Button */}
-                <button
-                  onClick={() => {
-                    handleEndAndReset();
-                  }}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all text-white"
-                  style={{
-                    background: "linear-gradient(135deg, #ef4444, #dc2626)",
-                    boxShadow: "0 4px 12px rgba(239,68,68,0.25)",
-                  }}
-                  title="End Voice Session"
-                >
-                  <PhoneOff className="w-3.5 h-3.5" />
-                  End Call
-                </button>
-
-                {/* Text Chat Button */}
-                <button
-                  onClick={() => {
-                    setIsVoiceMode(false);
-                    if (activeAudioRef.current) {
-                      activeAudioRef.current.pause();
-                      activeAudioRef.current = null;
-                    }
-                    if (recognitionRef.current) {
-                      try {
-                        recognitionRef.current.onstart = null;
-                        recognitionRef.current.onresult = null;
-                        recognitionRef.current.onerror = null;
-                        recognitionRef.current.onend = null;
-                        recognitionRef.current.abort();
-                      } catch (e) { }
-                      recognitionRef.current = null;
-                    }
-                    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-                      mediaRecorderRef.current.stop();
-                    }
-                    cleanupActiveRecording();
-                    setVoiceState("idle");
-                  }}
-                  className="p-2.5 rounded-xl transition-all"
-                  style={{
-                    background: "var(--bg-tertiary)",
-                    border: "1.5px solid var(--border-primary)",
-                    color: "var(--text-secondary)",
-                  }}
-                  title="Switch to Text Chat"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* ── Right: Live Transcript Panel (inline) / Below (floating) ── */}
-            <div
-              className={`z-10 flex flex-col ${mode === "inline"
-                ? "w-1/2 h-full p-5"
-                : "w-[85%] max-w-[320px] rounded-2xl p-4 mt-0"
-                }`}
-              style={
-                mode === "inline"
-                  ? {}
-                  : {
-                    background: "var(--bg-secondary)",
-                    border: "1.5px solid var(--border-primary)",
-                    boxShadow: "0 2px 16px rgba(0,0,0,0.1)",
-                  }
-              }
-            >
-              {mode === "inline" && (
-                <div className="mb-4 shrink-0">
-                  <h3
-                    className="text-xs font-bold uppercase tracking-[0.15em]"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    Conversation
-                  </h3>
-                </div>
-              )}
-
-              {/* Scrollable list of messages */}
+              {/* Animated Background Orbs */}
               <div
-                className="flex-1 overflow-y-auto space-y-4 pr-1"
-                style={mode === "inline" ? {} : { maxHeight: "320px" }}
+                className="absolute inset-0 overflow-hidden pointer-events-none"
+                style={{ opacity: 0.4 }}
               >
-                {(() => {
-                  const visibleVoiceMessages = chatMessages.filter((message) => {
-                    if (message.role === "assistant") {
-                      return (
-                        (message.text && message.text.trim().length > 0) ||
-                        (message.suggestions && message.suggestions.length > 0) ||
-                        (message.products && message.products.length > 0)
-                      );
-                    }
-                    return true;
-                  });
+                <div
+                  className="absolute rounded-full"
+                  style={{
+                    width: 200,
+                    height: 200,
+                    top: "10%",
+                    left: "-10%",
+                    background: `radial-gradient(circle, ${primaryColor}20 0%, transparent 70%)`,
+                    animation: "voiceFloat 8s ease-in-out infinite",
+                  }}
+                />
+                <div
+                  className="absolute rounded-full"
+                  style={{
+                    width: 160,
+                    height: 160,
+                    bottom: "15%",
+                    right: "-5%",
+                    background: `radial-gradient(circle, ${primaryColor}15 0%, transparent 70%)`,
+                    animation: "voiceFloat 6s ease-in-out infinite reverse",
+                  }}
+                />
+              </div>
 
-                  return visibleVoiceMessages.map((message, msgIdx) => {
-                    const isUser = message.role === "user";
-                    const isLastAssistant = !isUser && msgIdx === visibleVoiceMessages.length - 1;
-                    return (
-                      <div key={message.id} className="flex flex-col gap-2">
-                        <div
-                          className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
-                        >
-                          <div
-                            className="max-w-[85%] rounded-2xl p-3"
-                            style={
-                              isUser
-                                ? {
-                                  background: `${primaryColor}15`,
-                                  border: `1.5px solid ${primaryColor}30`,
-                                  borderRadius: "18px 18px 4px 18px",
-                                }
-                                : {
-                                  background: "var(--bg-secondary)",
-                                  border: "1.5px solid var(--border-primary)",
-                                  borderRadius: "18px 18px 18px 4px",
-                                }
-                            }
-                          >
-                            <p
-                              className="text-[10px] font-bold uppercase tracking-wider mb-1"
-                              style={{ color: isUser ? "var(--text-muted)" : primaryColor }}
-                            >
-                              {isUser ? "You" : botName}
-                            </p>
-                            <p
-                              className="text-sm leading-relaxed whitespace-pre-wrap"
-                              style={{ color: "var(--text-primary)" }}
-                            >
-                              {message.text || <span style={{ color: "var(--text-muted)" }}>…</span>}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Suggestion Chips in Voice Mode — shown on every message with suggestions */}
-                        {message.suggestions && message.suggestions.length > 0 && (
-                          <div className="flex flex-col gap-1.5 pl-1">
-                            {message.suggestions.map((opt, optIdx) => (
-                              <button
-                                key={opt}
-                                onClick={() => {
-                                  if (!isLastAssistant) return;
-                                  // Stop any active recording so the tapped option is the only input
-                                  if (voiceState === "recording") {
-                                    manualStopRef.current = true;
-                                    stopRecording();
-                                  }
-                                  submitVoiceMessage(opt);
-                                }}
-                                disabled={!isLastAssistant || isLoading || isStreaming || voiceState === "thinking"}
-                                className="w-full text-left px-3 py-2 rounded-xl text-[11px] font-medium border transition-all flex items-center gap-2"
-                                style={{
-                                  borderColor: `${primaryColor}35`,
-                                  color: "var(--text-primary)",
-                                  background: `${primaryColor}08`,
-                                  opacity: isLastAssistant ? 1 : 0.5,
-                                  cursor: isLastAssistant ? "pointer" : "default",
-                                  animation: isLastAssistant ? `fadeInUp 0.25s ease-out ${optIdx * 0.06}s both` : "none",
-                                }}
-                              >
-                                <span
-                                  className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-[9px] font-bold text-white"
-                                  style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)` }}
-                                >
-                                  {optIdx + 1}
-                                </span>
-                                <span className="flex-1">{opt}</span>
-                                {isLastAssistant && <ArrowRight className="w-3 h-3 opacity-40 shrink-0" style={{ color: primaryColor }} />}
-                              </button>
-                            ))}
-                            {isLastAssistant && (
-                              <p className="text-[9px] text-center mt-1" style={{ color: "var(--text-muted)" }}>
-                                Tap an option or say your choice
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Product Cards in Voice Mode */}
-                        {message.products && message.products.length > 0 && (
-                          <div className="pl-1">
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <Sparkles className="w-3 h-3" style={{ color: primaryColor }} />
-                              <span className="text-[9px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                                Recommended for you
-                              </span>
-                            </div>
-                            <div
-                              className="flex gap-2 overflow-x-auto pb-1"
-                              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                            >
-                              {message.products.map((product: any) => (
-                                <div
-                                  key={product.id}
-                                  className="flex flex-col w-[160px] shrink-0 rounded-xl border overflow-hidden"
-                                  style={{
-                                    borderColor: `${primaryColor}20`,
-                                    background: "var(--bg-secondary)",
-                                    boxShadow: `0 1px 8px ${primaryColor}08`,
-                                  }}
-                                >
-                                  <div
-                                    className="w-full h-20 flex items-center justify-center overflow-hidden"
-                                    style={{
-                                      background: product.imageUrl
-                                        ? "var(--bg-tertiary)"
-                                        : `linear-gradient(135deg, ${primaryColor}12, ${primaryColor}05)`,
-                                    }}
-                                  >
-                                    {product.imageUrl ? (
-                                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain p-1.5" />
-                                    ) : (
-                                      <ShoppingBag className="w-6 h-6" style={{ color: `${primaryColor}50` }} />
-                                    )}
-                                  </div>
-                                  <div className="p-2 flex flex-col flex-1">
-                                    <h4
-                                      className="text-[10px] font-bold truncate mb-0.5"
-                                      style={{ color: "var(--text-primary)" }}
-                                    >
-                                      {product.name}
-                                    </h4>
-                                    <div className="flex items-center justify-between mt-auto pt-1.5 border-t" style={{ borderColor: "var(--border-primary)" }}>
-                                      <span className="text-xs font-extrabold" style={{ color: "var(--text-primary)" }}>
-                                        {product.currency === "inr" ? "₹" : "د.إ "}{Number(product.price).toFixed(2)}
-                                      </span>
-                                      {product.checkoutUrl && (
-                                        <a
-                                          href={product.checkoutUrl}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="px-2 py-1 rounded-md text-[8px] font-bold text-white"
-                                          style={{
-                                            background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
-                                          }}
-                                        >
-                                          Buy Now
-                                        </a>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
-
-                {/* Transcribing loader state */}
-                {voiceState === "thinking" && userTranscript === "Transcribing..." && (
-                  <div className="flex w-full justify-end">
-                    <div
-                      className="max-w-[85%] rounded-2xl p-3"
-                      style={{
-                        background: `${primaryColor}15`,
-                        border: `1.5px solid ${primaryColor}30`,
-                        borderRadius: "18px 18px 4px 18px",
-                      }}
-                    >
-                      <p
-                        className="text-[10px] font-bold uppercase tracking-wider mb-1"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        You
-                      </p>
-                      <div className="flex items-center gap-1.5 py-1">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: primaryColor }} />
-                        <span className="text-xs italic" style={{ color: "var(--text-muted)" }}>
-                          Transcribing...
+              {/* 1. DESKTOP SPLIT VIEW: Visible on sm: and inline mode */}
+              <div className={`hidden ${mode === "inline" ? "sm:flex" : "hidden"} flex-1 flex-row w-full h-full relative overflow-hidden z-10`}>
+                {/* Left Panel: Mic + Controls */}
+                <div
+                  className="flex flex-col items-center justify-center w-1/2 h-full border-r py-6 shrink-0"
+                  style={{ borderColor: "var(--border-primary)" }}
+                >
+                  {/* Status Text & Indicators */}
+                  <div className="text-center mb-8 flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {voiceState === "recording" && (
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                         </span>
-                      </div>
+                      )}
+                      {voiceState === "thinking" && (
+                        <Sparkles className="w-3.5 h-3.5 animate-spin" style={{ color: primaryColor, animationDuration: '3s' }} />
+                      )}
+                      {voiceState === "speaking" && (
+                        <Volume2 className="w-3.5 h-3.5 animate-pulse text-emerald-500" />
+                      )}
+                      <p
+                        className="text-xs font-bold uppercase tracking-[0.15em]"
+                        style={{
+                          color: voiceState === "recording"
+                            ? "#ef4444"
+                            : voiceState === "thinking"
+                              ? primaryColor
+                              : voiceState === "speaking"
+                                ? "#10b981"
+                                : "var(--text-tertiary)",
+                        }}
+                      >
+                        {voiceState === "idle" && "Ready"}
+                        {voiceState === "recording" && "Listening"}
+                        {voiceState === "thinking" && "Processing"}
+                        {voiceState === "speaking" && "Speaking"}
+                      </p>
                     </div>
-                  </div>
-                )}
-
-                {/* Empty State */}
-                {chatMessages.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-6">
                     <p
-                      className="text-xs text-center"
+                      className="text-[10.5px] font-medium"
                       style={{ color: "var(--text-muted)" }}
                     >
-                      {mode === "inline"
-                        ? "Your conversation transcript will appear here"
-                        : "Tap the microphone to start speaking"}
+                      {voiceState === "idle" && "Tap the microphone to begin"}
+                      {voiceState === "recording" && "Speak naturally now..."}
+                      {voiceState === "thinking" && "Consulting AI knowledge..."}
+                      {voiceState === "speaking" && `${botName} is responding`}
                     </p>
+                  </div>
+
+                  {/* Big Mic Button */}
+                  <div className="relative mb-8 flex items-center justify-center w-28 h-28">
+                    {/* Ripple rings */}
+                    {voiceState === "recording" && (
+                      <>
+                        <div className="absolute inset-0 rounded-full bg-red-500/10" style={{ animation: "rippleSpread 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite" }} />
+                        <div className="absolute inset-0 rounded-full bg-red-500/5" style={{ animation: "rippleSpread 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 0.6s" }} />
+                      </>
+                    )}
+                    {voiceState === "speaking" && (
+                      <>
+                        <div className="absolute inset-0 rounded-full bg-emerald-500/10" style={{ animation: "rippleSpread 2.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite" }} />
+                      </>
+                    )}
+                    {voiceState === "thinking" && (
+                      <div className="absolute inset-[4px] rounded-full" style={{ border: "3.5px solid transparent", borderTopColor: primaryColor, borderRightColor: primaryColor, borderBottomColor: primaryColor, animation: "spinPure 1.4s linear infinite" }} />
+                    )}
+
+                    <button
+                      onClick={toggleMic}
+                      disabled={voiceState === "thinking"}
+                      className="relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300"
+                      style={{
+                        background:
+                          voiceState === "recording"
+                            ? "linear-gradient(135deg, #ef4444, #dc2626)"
+                            : voiceState === "speaking"
+                              ? "linear-gradient(135deg, #10b981, #059669)"
+                              : voiceState === "thinking"
+                                ? "var(--bg-secondary)"
+                                : `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
+                        border: voiceState === "thinking" ? `1px solid var(--border-primary)` : "none",
+                        boxShadow:
+                          voiceState === "recording"
+                            ? "0 8px 32px rgba(239,68,68,0.3)"
+                            : voiceState === "speaking"
+                              ? "0 8px 32px rgba(16,185,129,0.3)"
+                              : `0 8px 32px ${primaryColor}30`,
+                        animation: voiceState === "recording" ? "voicePulse 2s ease-in-out infinite" : "none",
+                      }}
+                    >
+                      {voiceState === "recording" ? (
+                        <MicOff className="w-8 h-8 text-white" />
+                      ) : voiceState === "thinking" ? (
+                        <Sparkles className="w-8 h-8 animate-pulse" style={{ color: primaryColor }} />
+                      ) : voiceState === "speaking" ? (
+                        <Volume2 className="w-8 h-8 text-white" />
+                      ) : (
+                        <Mic className="w-8 h-8 text-white" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Sound Wave */}
+                  <div className="flex items-end justify-center gap-1.5 h-10 mb-8">
+                    {[...Array(13)].map((_, i) => {
+                      const multipliers = [0.35, 0.55, 0.75, 0.95, 1.15, 1.3, 1.4, 1.3, 1.15, 0.95, 0.75, 0.55, 0.35];
+                      const isRecording = voiceState === "recording";
+                      const isSpeaking = voiceState === "speaking";
+                      const isThinking = voiceState === "thinking";
+                      let barHeight = "6px";
+                      if (isRecording) {
+                        barHeight = `${Math.max(6, Math.min(36, (audioLevel / 40) * 32 * multipliers[i] + 4))}px`;
+                      } else if (isSpeaking) {
+                        barHeight = `${8 + Math.random() * 26 * multipliers[i]}px`;
+                      }
+                      return (
+                        <div
+                          key={i}
+                          className="w-1 rounded-full transition-all duration-100"
+                          style={{
+                            height: isThinking ? "16px" : barHeight,
+                            background:
+                              isRecording
+                                ? `linear-gradient(to top, #ef4444, #f87171)`
+                                : isSpeaking
+                                  ? `linear-gradient(to top, #10b981, #34d399)`
+                                  : `linear-gradient(to top, var(--text-muted), var(--text-tertiary))`,
+                            animation:
+                              isThinking
+                                ? `voiceWaveIdle 1.4s ease-in-out infinite alternate ${i * 0.08}s`
+                                : isSpeaking
+                                  ? `voiceWave 0.6s ease-in-out infinite alternate ${i * 0.05}s`
+                                  : "none",
+                            opacity: voiceState === "idle" ? 0.25 : 0.85,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* Bottom Controls */}
+                  <div className="flex items-center gap-3.5 shrink-0">
+                    <button
+                      onClick={() => {
+                        setIsMuted((m) => !m);
+                        if (activeAudioRef.current) {
+                          activeAudioRef.current.pause();
+                          activeAudioRef.current = null;
+                          setVoiceState("idle");
+                        }
+                      }}
+                      className="p-2.5 rounded-xl transition-all"
+                      style={{
+                        background: isMuted ? "rgba(239,68,68,0.1)" : "var(--bg-tertiary)",
+                        border: isMuted ? "1.5px solid rgba(239,68,68,0.25)" : "1.5px solid var(--border-primary)",
+                        color: isMuted ? "#ef4444" : "var(--text-secondary)",
+                      }}
+                      title={isMuted ? "Unmute" : "Mute"}
+                    >
+                      {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+
+                    <button
+                      onClick={handleEndAndReset}
+                      className="px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all text-white"
+                      style={{
+                        background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                        boxShadow: "0 4px 12px rgba(239,68,68,0.25)",
+                      }}
+                      title="End Voice Session"
+                    >
+                      <PhoneOff className="w-3.5 h-3.5" />
+                      End Call
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsVoiceMode(false);
+                        if (activeAudioRef.current) {
+                          activeAudioRef.current.pause();
+                          activeAudioRef.current = null;
+                        }
+                        if (recognitionRef.current) {
+                          try { recognitionRef.current.abort(); } catch (e) { }
+                          recognitionRef.current = null;
+                        }
+                        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+                          mediaRecorderRef.current.stop();
+                        }
+                        cleanupActiveRecording();
+                        setVoiceState("idle");
+                      }}
+                      className="p-2.5 rounded-xl transition-all"
+                      style={{
+                        background: "var(--bg-tertiary)",
+                        border: "1.5px solid var(--border-primary)",
+                        color: "var(--text-secondary)",
+                      }}
+                      title="Switch to Text Chat"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right Panel: Scrollable Transcript Log */}
+                <div className="flex flex-col w-1/2 h-full p-5 overflow-hidden">
+                  <div className="mb-4 shrink-0">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
+                      Conversation
+                    </h3>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-4 pr-1 voice-transcript-container">
+                    {chatMessages.filter(m => m.role === "user" || m.text || m.suggestions || m.products).map((message, msgIdx) => {
+                      const isUser = message.role === "user";
+                      const isLastAssistant = !isUser && msgIdx === chatMessages.length - 1;
+                      return (
+                        <div key={message.id} className="flex flex-col gap-2">
+                          <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
+                            <div
+                              className="max-w-[85%] rounded-2xl p-3"
+                              style={isUser ? { background: `${primaryColor}15`, border: `1.5px solid ${primaryColor}30`, borderRadius: "18px 18px 4px 18px" } : { background: "var(--bg-secondary)", border: "1.5px solid var(--border-primary)", borderRadius: "18px 18px 18px 4px" }}
+                            >
+                              <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: isUser ? "var(--text-muted)" : primaryColor }}>
+                                {isUser ? "You" : botName}
+                              </p>
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text-primary)" }}>
+                                {message.text || <span style={{ color: "var(--text-muted)" }}>…</span>}
+                              </p>
+                            </div>
+                          </div>
+
+                          {message.suggestions && message.suggestions.length > 0 && (
+                            <div className="flex flex-col gap-1.5 pl-1">
+                              {message.suggestions.map((opt, optIdx) => (
+                                <button
+                                  key={opt}
+                                  onClick={() => {
+                                    if (!isLastAssistant) return;
+                                    if (voiceState === "recording") { manualStopRef.current = true; stopRecording(); }
+                                    submitVoiceMessage(opt);
+                                  }}
+                                  disabled={!isLastAssistant || isLoading || isStreaming || voiceState === "thinking"}
+                                  className="w-full text-left px-3 py-2 rounded-xl text-[11px] font-medium border transition-all flex items-center gap-2 suggestion-btn"
+                                  style={{ borderColor: `${primaryColor}35`, color: "var(--text-primary)", background: `${primaryColor}08`, opacity: isLastAssistant ? 1 : 0.5, cursor: isLastAssistant ? "pointer" : "default" }}
+                                >
+                                  <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-[9px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)` }}>
+                                    {optIdx + 1}
+                                  </span>
+                                  <span className="flex-1">{opt}</span>
+                                  {isLastAssistant && <ArrowRight className="w-3 h-3 opacity-40 shrink-0 suggestion-arrow" style={{ color: primaryColor }} />}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {message.products && message.products.length > 0 && (
+                            <div className="pl-1">
+                              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                                {message.products.map((product: any) => (
+                                  <div key={product.id} className="flex flex-col w-[195px] shrink-0 rounded-xl border overflow-hidden" style={{ borderColor: `${primaryColor}20`, background: "var(--bg-secondary)", boxShadow: `0 1px 8px ${primaryColor}08` }}>
+                                    <div className="w-full h-20 flex items-center justify-center overflow-hidden" style={{ background: product.imageUrl ? "var(--bg-tertiary)" : `linear-gradient(135deg, ${primaryColor}12, ${primaryColor}05)` }}>
+                                      {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain p-1.5" /> : <ShoppingBag className="w-6 h-6" style={{ color: `${primaryColor}50` }} />}
+                                    </div>
+                                    <div className="p-2 flex flex-col flex-1">
+                                      <h4 className="text-[10px] font-bold truncate mb-0.5" style={{ color: "var(--text-primary)" }}>{product.name}</h4>
+                                      <div className="flex items-center justify-between mt-auto pt-1.5 border-t" style={{ borderColor: "var(--border-primary)" }}>
+                                        <span className="text-xs font-extrabold" style={{ color: "var(--text-primary)" }}>{product.currency === "inr" ? "₹" : "د.إ "}{Number(product.price).toFixed(2)}</span>
+                                        {product.checkoutUrl && <a href={product.checkoutUrl} target="_blank" rel="noreferrer" className="px-2 py-1 rounded-md text-[8px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)` }}>Buy Now</a>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <div ref={voiceTranscriptEndRef} />
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. MOBILE IMMERSIVE VIEW: Visible on narrow viewports */}
+              <div className={`flex ${mode === "inline" ? "sm:hidden" : "flex"} flex-col flex-1 w-full h-full justify-between items-center p-4 min-h-0 relative z-10`}>
+
+                {/* Top Mini Header / State indicator */}
+                <div className="text-center w-full pt-1 pb-2 shrink-0">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border bg-bg-secondary/40" style={{ borderColor: "var(--border-primary)" }}>
+                    {voiceState === "recording" && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                    )}
+                    {voiceState === "thinking" && (
+                      <Sparkles className="w-3 h-3 animate-spin" style={{ color: primaryColor, animationDuration: '3s' }} />
+                    )}
+                    {voiceState === "speaking" && (
+                      <Volume2 className="w-3 h-3 text-emerald-500 animate-pulse" />
+                    )}
+                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{
+                      color: voiceState === "recording" ? "#ef4444" : voiceState === "thinking" ? primaryColor : voiceState === "speaking" ? "#10b981" : "var(--text-muted)"
+                    }}>
+                      {voiceState === "idle" && "Ready"}
+                      {voiceState === "recording" && "Listening"}
+                      {voiceState === "thinking" && "AI Consulting"}
+                      {voiceState === "speaking" && "Speaking"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Center Content Area */}
+                <div className="flex-1 w-full flex flex-col justify-center items-center min-h-0 mb-4 px-2">
+
+                  {/* A. If active suggestions exist -> Intake Steps Card Mode */}
+                  {activeSuggestions.length > 0 ? (
+                    <div className="w-full flex flex-col justify-center items-center min-h-0 py-1" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
+                      {/* Bot prompt quotation bubble */}
+                      {lastAssistantText && (
+                        <div className="w-full max-w-[320px] bg-bg-secondary/70 border p-3 rounded-2xl mb-3 text-left shadow-sm" style={{ borderColor: "var(--border-primary)" }}>
+                          <p className="text-[9px] font-extrabold uppercase tracking-wider mb-1" style={{ color: primaryColor }}>{botName}</p>
+                          <p className="text-xs leading-relaxed text-text-primary italic line-clamp-3">{lastAssistantText}</p>
+                        </div>
+                      )}
+                      {/* Selection Cards List */}
+                      <div className="w-full max-w-[320px] flex flex-col gap-2 overflow-y-auto max-h-[220px] no-scrollbar pr-0.5 py-0.5">
+                        {activeSuggestions.map((opt, optIdx) => (
+                          <button
+                            key={opt}
+                            onClick={() => {
+                              if (voiceState === "recording") { manualStopRef.current = true; stopRecording(); }
+                              submitVoiceMessage(opt);
+                            }}
+                            disabled={isLoading || isStreaming || voiceState === "thinking"}
+                            className="suggestion-btn w-full text-left px-4 py-3 rounded-xl text-xs font-semibold border transition-all flex items-center gap-3 shadow-sm"
+                            style={{
+                              borderColor: `${primaryColor}35`,
+                              color: "var(--text-primary)",
+                              background: "var(--bg-secondary)",
+                            }}
+                          >
+                            <span className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-bold text-white select-none" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)` }}>
+                              {optIdx + 1}
+                            </span>
+                            <span className="flex-1 line-clamp-2">{opt}</span>
+                            <ArrowRight className="w-3.5 h-3.5 opacity-40 shrink-0 suggestion-arrow transition-opacity" style={{ color: primaryColor }} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+
+                    // B. If products exist -> Recommendation Slider Mode
+                    : activeProducts.length > 0 ? (
+                      <div className="w-full flex flex-col justify-center items-center min-h-0 py-1" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
+                        <div className="flex items-center gap-1.5 mb-2.5">
+                          <Sparkles className="w-3.5 h-3.5" style={{ color: primaryColor }} />
+                          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Recommended Products</span>
+                        </div>
+                        <div className="w-full flex gap-3 overflow-x-auto py-1 px-2 no-scrollbar">
+                          {activeProducts.map((product: any) => (
+                            <div key={product.id} className="flex flex-col w-[190px] shrink-0 rounded-2xl border overflow-hidden shadow-sm bg-bg-secondary/40" style={{ borderColor: "var(--border-primary)" }}>
+                              <div className="w-full h-24 flex items-center justify-center overflow-hidden bg-bg-tertiary/60">
+                                {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain p-2" /> : <ShoppingBag className="w-6 h-6" style={{ color: `${primaryColor}40` }} />}
+                              </div>
+                              <div className="p-2.5 flex flex-col flex-1">
+                                <h4 className="text-[10.5px] font-bold truncate mb-1" style={{ color: "var(--text-primary)" }}>{product.name}</h4>
+                                <div className="flex items-center justify-between mt-auto pt-2 border-t" style={{ borderColor: "var(--border-primary)" }}>
+                                  <span className="text-xs font-black" style={{ color: "var(--text-primary)" }}>{product.currency === "inr" ? "₹" : "د.إ "}{Number(product.price).toFixed(2)}</span>
+                                  {product.checkoutUrl && (
+                                    <a href={product.checkoutUrl} target="_blank" rel="noreferrer" className="px-2.5 py-1 rounded-md text-[9px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)` }}>Buy Now</a>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+
+                      // C. Default Breathing Aura Visualizer Mode
+                      : (
+                        <div className="flex flex-col items-center justify-center py-2" style={{ animation: "fadeInUp 0.4s ease-out both" }}>
+
+                          {/* Glowing Avatar Aura */}
+                          <div className="relative w-24 h-24 mb-6 flex items-center justify-center">
+                            {voiceState === "recording" && (
+                              <>
+                                <div className="absolute inset-0 rounded-full bg-red-500/10" style={{ animation: "rippleSpread 2.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite" }} />
+                                <div className="absolute inset-0 rounded-full bg-red-500/5" style={{ animation: "rippleSpread 2.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 0.7s" }} />
+                              </>
+                            )}
+                            {voiceState === "speaking" && (
+                              <>
+                                <div className="absolute inset-0 rounded-full bg-emerald-500/10" style={{ animation: "rippleSpread 2.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite" }} />
+                                <div className="absolute inset-0 rounded-full bg-emerald-500/5" style={{ animation: "rippleSpread 2.2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 0.7s" }} />
+                              </>
+                            )}
+                            {voiceState === "thinking" && (
+                              <div className="absolute inset-0 rounded-full" style={{ border: "2px solid transparent", borderTopColor: primaryColor, borderRightColor: primaryColor, animation: "spinPure 1.2s linear infinite" }} />
+                            )}
+
+                            <div className="relative w-16 h-16 rounded-full flex items-center justify-center border shadow-md" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc)`, borderColor: "var(--border-secondary)" }}>
+                              {widgetConfig?.botIconUrl ? (
+                                <img src={widgetConfig.botIconUrl} alt="Bot Avatar" className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                <Bot className="w-7 h-7 text-white" />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Compact Wave visualizer */}
+                          <div className="flex items-end justify-center gap-1 h-7 mb-6">
+                            {[...Array(9)].map((_, i) => {
+                              const multipliers = [0.4, 0.7, 1.0, 1.2, 1.3, 1.2, 1.0, 0.7, 0.4];
+                              const isRecording = voiceState === "recording";
+                              const isSpeaking = voiceState === "speaking";
+                              const isThinking = voiceState === "thinking";
+                              let barHeight = "5px";
+                              if (isRecording) {
+                                barHeight = `${Math.max(5, Math.min(28, (audioLevel / 40) * 24 * multipliers[i] + 3))}px`;
+                              } else if (isSpeaking) {
+                                barHeight = `${6 + Math.random() * 20 * multipliers[i]}px`;
+                              }
+                              return (
+                                <div
+                                  key={i}
+                                  className="w-0.9 rounded-full transition-all duration-100"
+                                  style={{
+                                    height: isThinking ? "12px" : barHeight,
+                                    background:
+                                      isRecording
+                                        ? `linear-gradient(to top, #ef4444, #f87171)`
+                                        : isSpeaking
+                                          ? `linear-gradient(to top, #10b981, #34d399)`
+                                          : `linear-gradient(to top, var(--text-muted), var(--text-tertiary))`,
+                                    animation:
+                                      isThinking
+                                        ? `voiceWaveIdle 1.4s ease-in-out infinite alternate ${i * 0.08}s`
+                                        : isSpeaking
+                                          ? `voiceWave 0.6s ease-in-out infinite alternate ${i * 0.05}s`
+                                          : "none",
+                                    opacity: voiceState === "idle" ? 0.2 : 0.8,
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+
+                          {/* Subtitle speech card */}
+                          <div className="w-[90%] max-w-[300px] text-center px-4 py-2.5 rounded-2xl bg-bg-secondary/40 border" style={{ borderColor: "var(--border-primary)" }}>
+                            <p className="text-[11.5px] leading-relaxed font-medium text-text-secondary italic line-clamp-3 select-none">
+                              {voiceState === "recording" && (userTranscript || "Listening...")}
+                              {voiceState === "speaking" && (botSpeechText || `${botName} is speaking...`)}
+                              {voiceState === "thinking" && "AI is thinking..."}
+                              {voiceState === "idle" && "Tap microphone to talk"}
+                            </p>
+                          </div>
+
+                        </div>
+                      )}
+
+                </div>
+
+                {/* Voice Error (Mobile Specific) */}
+                {voiceError && (
+                  <div className="px-4 py-2 rounded-xl text-[10px] text-center max-w-[85%] mb-3" style={{ background: "rgba(220, 38, 38, 0.1)", border: "1px solid rgba(248, 113, 113, 0.2)", color: "#f87171" }}>
+                    ⚠️ {voiceError}
                   </div>
                 )}
 
-                {/* Anchor element for scrolling */}
-                <div ref={voiceTranscriptEndRef} />
-              </div>
-            </div>
-          </div>
+                {/* Unified Floating Bottom Control Dock */}
+                <div
+                  className="w-[90%] max-w-[340px] flex items-center justify-between gap-3 p-2.5 rounded-2xl border bg-bg-elevated/80 backdrop-blur-md shadow-lg shrink-0 mb-2"
+                  style={{ borderColor: "var(--border-primary)" }}
+                >
+                  {/* Mute Toggle */}
+                  <button
+                    onClick={() => {
+                      setIsMuted((m) => !m);
+                      if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current = null; setVoiceState("idle"); }
+                    }}
+                    className="p-2.5 rounded-xl bg-bg-secondary/40 border hover:bg-bg-secondary transition-all"
+                    style={{ borderColor: "var(--border-primary)" }}
+                    title={isMuted ? "Unmute" : "Mute"}
+                  >
+                    {isMuted ? <VolumeX className="w-4 h-4 text-red-500 animate-pulse" /> : <Volume2 className="w-4 h-4 text-text-secondary" />}
+                  </button>
 
-          {/* Powered by */}
-          <div
-            style={{
-              background: "var(--bg-elevated)",
-              borderTop: "1.5px solid var(--border-primary)",
-            }}
-            className="px-4 py-2 shrink-0"
-          >
-            <p
-              className="text-center text-[9px]"
-              style={{ color: "var(--text-muted)", letterSpacing: "0.04em" }}
+                  {/* Main Mic Action Button */}
+                  <button
+                    onClick={toggleMic}
+                    disabled={voiceState === "thinking"}
+                    className="w-12 h-12 rounded-full flex items-center justify-center text-white transition-all shadow-md active:scale-95 disabled:opacity-40"
+                    style={{
+                      background:
+                        voiceState === "recording"
+                          ? "linear-gradient(135deg, #ef4444, #dc2626)"
+                          : voiceState === "speaking"
+                            ? "linear-gradient(135deg, #10b981, #059669)"
+                            : voiceState === "thinking"
+                              ? "var(--bg-secondary)"
+                              : `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
+                      boxShadow:
+                        voiceState === "recording"
+                          ? "0 4px 16px rgba(239,68,68,0.25)"
+                          : voiceState === "speaking"
+                            ? "0 4px 16px rgba(16,185,129,0.25)"
+                            : `0 4px 16px ${primaryColor}20`,
+                    }}
+                  >
+                    {voiceState === "recording" ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  </button>
+
+                  {/* End Call Button */}
+                  <button
+                    onClick={handleEndAndReset}
+                    className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                    title="End Call"
+                  >
+                    <PhoneOff className="w-4 h-4" />
+                  </button>
+
+                  {/* Text Chat Button */}
+                  <button
+                    onClick={() => {
+                      setIsVoiceMode(false);
+                      if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current = null; }
+                      if (recognitionRef.current) { try { recognitionRef.current.abort(); } catch (e) { } recognitionRef.current = null; }
+                      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") { mediaRecorderRef.current.stop(); }
+                      cleanupActiveRecording();
+                      setVoiceState("idle");
+                    }}
+                    className="p-2.5 rounded-xl bg-bg-secondary/40 border hover:bg-bg-secondary transition-all"
+                    style={{ borderColor: "var(--border-primary)" }}
+                    title="Switch to Text"
+                  >
+                    <MessageSquare className="w-4 h-4 text-text-secondary" />
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Powered by */}
+            <div
+              style={{
+                background: "var(--bg-elevated)",
+                borderTop: "1.5px solid var(--border-primary)",
+                paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
+              }}
+              className="px-4 py-2 shrink-0 z-10"
             >
-              Powered by{" "}
-              <span
-                className="font-semibold"
-                style={{
-                  background: `linear-gradient(135deg, ${primaryColor}, var(--text-secondary))`,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
+              <p
+                className="text-center text-[9px]"
+                style={{ color: "var(--text-muted)", letterSpacing: "0.04em" }}
               >
-                {widgetConfig?.poweredBy || "AI Consultation"}
-              </span>
-            </p>
-          </div>
-        </>
-      )}
+                Powered by{" "}
+                <span
+                  className="font-semibold"
+                  style={{
+                    background: `linear-gradient(135deg, ${primaryColor}, var(--text-secondary))`,
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
+                  {widgetConfig?.poweredBy || "AI Consultation NMC"}
+                </span>
+              </p>
+            </div>
+          </>
+        );
+      })()}
 
       {/* ── Chat Messages ── */}
       {leadCaptured && !isVoiceMode && (
@@ -2769,12 +2855,12 @@ export default function EmbedChat({
                         )}
 
                         {/* Message Bubble */}
-                        <div className="flex flex-col gap-2 max-w-[78%]">
+                        <div className="flex flex-col gap-2 flex-grow max-w-[88%]">
                           {message.text && (
                             <div
-                              className={`px-4 py-3 text-[13px] leading-relaxed ${message.role === "user"
-                                ? "rounded-2xl rounded-br-sm"
-                                : "rounded-2xl rounded-bl-sm"
+                              className={`px-4 py-3 text-[13px] leading-relaxed max-w-[85%] ${message.role === "user"
+                                ? "rounded-2xl rounded-br-sm ml-auto self-end"
+                                : "rounded-2xl rounded-bl-sm self-start"
                                 }`}
                               style={
                                 message.role === "user"
@@ -2806,24 +2892,12 @@ export default function EmbedChat({
                                     key={opt}
                                     onClick={() => { if (isLatest) handleSuggestionClick(opt); }}
                                     disabled={!isLatest || isLoading || isStreaming}
-                                    className={`w-full text-left px-4 py-3 rounded-xl text-[13px] font-medium border transition-all flex items-center gap-3 ${isLatest ? "cursor-pointer group" : "cursor-default"}`}
+                                    className={`w-full text-left px-4 py-3 rounded-xl text-[13px] font-medium border transition-all flex items-center gap-3 suggestion-btn ${isLatest ? "cursor-pointer group" : "cursor-default"}`}
                                     style={{
                                       borderColor: `${primaryColor}35`,
                                       color: "var(--text-primary)",
                                       background: `${primaryColor}08`,
                                       animation: isLatest ? `fadeInUp 0.25s ease-out ${optIdx * 0.06}s both` : "none",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      if (!isLatest) return;
-                                      (e.currentTarget as HTMLButtonElement).style.background = `${primaryColor}20`;
-                                      (e.currentTarget as HTMLButtonElement).style.borderColor = primaryColor;
-                                      (e.currentTarget as HTMLButtonElement).style.transform = "translateX(4px)";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (!isLatest) return;
-                                      (e.currentTarget as HTMLButtonElement).style.background = `${primaryColor}08`;
-                                      (e.currentTarget as HTMLButtonElement).style.borderColor = `${primaryColor}35`;
-                                      (e.currentTarget as HTMLButtonElement).style.transform = "translateX(0)";
                                     }}
                                   >
                                     <span
@@ -2835,7 +2909,7 @@ export default function EmbedChat({
                                     <span className="flex-1">{opt}</span>
                                     {isLatest && (
                                       <ArrowRight
-                                        className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                        className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 suggestion-arrow"
                                         style={{ color: primaryColor }}
                                       />
                                     )}
@@ -2866,7 +2940,7 @@ export default function EmbedChat({
 
                               {/* Scrollable Product Cards */}
                               <div
-                                className="flex gap-3 overflow-x-auto py-1 px-0.5 max-w-full"
+                                className="flex gap-3 overflow-x-auto py-1 px-0.5 max-w-full no-scrollbar"
                                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                               >
                                 {message.products.map((product: any, pIdx: number) => (
@@ -2941,6 +3015,7 @@ export default function EmbedChat({
                                             onMouseLeave={(e) => {
                                               (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1)";
                                             }}
+                                            onClick={() => trackEvent("product_click", { productId: product.id, productName: product.name, checkoutUrl: product.checkoutUrl })}
                                           >
                                             Buy Now
                                           </a>
@@ -3056,6 +3131,7 @@ export default function EmbedChat({
               background: "linear-gradient(0deg, var(--bg-elevated) 0%, var(--bg-secondary) 100%)",
               borderTop: "1.5px solid var(--border-primary)",
               boxShadow: "0 -2px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.03)",
+              paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
             }}
             className="px-4 py-3 shrink-0"
           >
@@ -3074,6 +3150,7 @@ export default function EmbedChat({
                 }}
                 disabled={isLoading || isStreaming}
                 onFocus={(e) => {
+                  triggerInlineMaximize();
                   (e.currentTarget as HTMLInputElement).style.borderColor = primaryColor;
                   (e.currentTarget as HTMLInputElement).style.boxShadow = `0 0 0 3px ${primaryColor}15`;
                 }}
@@ -3082,6 +3159,31 @@ export default function EmbedChat({
                   (e.currentTarget as HTMLInputElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
                 }}
               />
+
+              {/* Voice Consultation Shortcut */}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerInlineMaximize();
+                  setIsVoiceMode(true);
+                  setVoiceSessionEnded(false);
+                  userPausedRef.current = false;
+                  // Start voice recording automatically
+                  setTimeout(() => {
+                    if (startRecordingRef.current) startRecordingRef.current();
+                  }, 400);
+                }}
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all shrink-0"
+                style={{
+                  background: "var(--bg-tertiary)",
+                  border: "1.5px solid var(--border-primary)",
+                  color: "var(--text-secondary)",
+                }}
+                title="Switch to Voice Consultation"
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+
               <button
                 type="submit"
                 disabled={isLoading || isStreaming || !input.trim()}
@@ -3107,7 +3209,7 @@ export default function EmbedChat({
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                {widgetConfig?.poweredBy || "AI Consultation"}
+                {widgetConfig?.poweredBy || "AI Consultation BY NMC"}
               </span>
             </p>
           </div>
@@ -3164,6 +3266,42 @@ export default function EmbedChat({
         @keyframes glowPulse {
           0%, 100% { opacity: 0.45; }
           50% { opacity: 0.85; }
+        }
+        .voice-transcript-container {
+          max-height: 120px;
+        }
+        @media (min-height: 500px) {
+          .voice-transcript-container {
+            max-height: 180px;
+          }
+        }
+        @media (min-height: 650px) {
+          .voice-transcript-container {
+            max-height: 280px;
+          }
+        }
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .suggestion-btn {
+          transition: all 0.2s ease-in-out;
+        }
+        @media (hover: hover) {
+          .suggestion-btn:hover:not(:disabled) {
+            transform: translateX(4px);
+            background-color: ${primaryColor}18 !important;
+            border-color: ${primaryColor} !important;
+          }
+          .suggestion-btn:hover:not(:disabled) .suggestion-arrow {
+            opacity: 1 !important;
+          }
+        }
+        .suggestion-btn:active:not(:disabled) {
+          transform: scale(0.98);
         }
       `}</style>
     </div>

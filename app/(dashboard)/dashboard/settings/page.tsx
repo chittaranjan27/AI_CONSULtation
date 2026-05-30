@@ -469,7 +469,7 @@ export default function SettingsPage() {
           </div>
         </>
       ) : (
-        <div className="glass-card p-8 hover:transform-none hover:border-[var(--border-primary)]">
+        <div className="glass-card p-5 sm:p-8 hover:transform-none hover:border-[var(--border-primary)]">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 className="w-8 h-8 text-[var(--brand-purple)] animate-spin" />

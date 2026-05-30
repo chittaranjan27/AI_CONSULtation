@@ -71,6 +71,45 @@ export async function POST(req: Request) {
         },
       });
       resolvedConversationId = conversation.id;
+
+      // Track new vs returning user + increment DailyStats conversations counter (fire-and-forget)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const isNewUser = resolvedVisitorId
+        ? await prisma.visitor.findUnique({
+            where: { id: resolvedVisitorId },
+            select: { firstSeenAt: true },
+          }).then(v => {
+            if (!v) return true;
+            const firstSeen = new Date(v.firstSeenAt);
+            firstSeen.setHours(0, 0, 0, 0);
+            return firstSeen.getTime() === today.getTime();
+          })
+        : true; // Anonymous = new
+
+      prisma.dailyStats.upsert({
+        where: {
+          tenantId_chatbotId_date: {
+            tenantId: chatbot.tenantId,
+            chatbotId: chatbot.id,
+            date: today,
+          },
+        },
+        create: {
+          tenantId: chatbot.tenantId,
+          chatbotId: chatbot.id,
+          date: today,
+          conversations: 1,
+          ...(isNewUser ? { newUsers: 1 } : { returningUsers: 1 }),
+        },
+        update: {
+          conversations: { increment: 1 },
+          ...(isNewUser
+            ? { newUsers: { increment: 1 } }
+            : { returningUsers: { increment: 1 } }),
+        },
+      }).catch(err => console.error("DailyStats upsert error:", err));
     }
 
     // Execute streaming chat completion

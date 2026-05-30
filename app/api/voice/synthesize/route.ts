@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/db/prisma";
+import { getChatbotTenant } from "@/lib/db/cache";
+import { VOICE_COSTS } from "@/lib/ai/providers";
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.SARVAM_API_KEY;
   const openaiApiKey = process.env.OPENAI_API_KEY;
 
   try {
-    const { text, speaker = "priya", language = "en" } = await req.json();
+    const { text, speaker = "priya", language = "en", chatbotId, conversationId } = await req.json();
 
     if (!text || typeof text !== "string") {
       return NextResponse.json(
@@ -18,6 +21,8 @@ export async function POST(req: NextRequest) {
     if (text.length > 500) {
       console.warn(`TTS text truncated: ${text.length} chars → 500 chars`);
     }
+
+    const characterCount = truncatedText.length;
 
     // Use OpenAI TTS for Arabic/Urdu if OpenAI key is configured
     if ((language === "ar" || language === "ur") && openaiApiKey) {
@@ -49,6 +54,9 @@ export async function POST(req: NextRequest) {
 
       const arrayBuffer = await response.arrayBuffer();
       const base64Audio = Buffer.from(arrayBuffer).toString("base64");
+
+      // Log TTS usage (OpenAI) — fire-and-forget
+      logTTSUsage(chatbotId, conversationId, "OPENAI", "tts-1", characterCount);
 
       return NextResponse.json({
         audio: base64Audio,
@@ -99,6 +107,9 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
 
+    // Log TTS usage (Sarvam AI) — fire-and-forget
+    logTTSUsage(chatbotId, conversationId, "SARVAM", "bulbul:v3", characterCount);
+
     return NextResponse.json({
       audio: data.audios?.[0] || data.audio || "",
     });
@@ -108,5 +119,73 @@ export async function POST(req: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Log TTS usage to the database asynchronously (fire-and-forget).
+ * Resolves tenantId from chatbotId and writes UsageRecord + DailyStats.
+ */
+async function logTTSUsage(
+  chatbotId: string | null | undefined,
+  conversationId: string | null | undefined,
+  provider: "OPENAI" | "SARVAM",
+  model: string,
+  characterCount: number
+) {
+  if (!chatbotId) return;
+
+  try {
+    const chatbot = await getChatbotTenant(chatbotId);
+    if (!chatbot) return;
+
+    const tenantId = chatbot.tenantId;
+    const costConfig = VOICE_COSTS[model];
+    const estimatedCost = characterCount * (costConfig?.ratePerCharacter ?? 0);
+
+    // Strip time from date for DailyStats date-only key
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    await Promise.all([
+      prisma.usageRecord.create({
+        data: {
+          tenantId,
+          chatbotId,
+          conversationId: conversationId || null,
+          provider,
+          model,
+          characterCount,
+          requestType: "TTS",
+          cost: estimatedCost,
+        },
+      }),
+      prisma.dailyStats.upsert({
+        where: {
+          tenantId_chatbotId_date: {
+            tenantId,
+            chatbotId,
+            date: today,
+          },
+        },
+        create: {
+          tenantId,
+          chatbotId,
+          date: today,
+          ttsRequests: 1,
+          ttsCharacters: characterCount,
+          voiceCost: estimatedCost,
+          totalCost: estimatedCost,
+        },
+        update: {
+          ttsRequests: { increment: 1 },
+          ttsCharacters: { increment: characterCount },
+          voiceCost: { increment: estimatedCost },
+          totalCost: { increment: estimatedCost },
+        },
+      }),
+    ]);
+  } catch (err) {
+    console.error("Failed logging TTS usage:", err);
   }
 }

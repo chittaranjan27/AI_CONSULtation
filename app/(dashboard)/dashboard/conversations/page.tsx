@@ -32,6 +32,7 @@ export default async function ConversationsPage() {
         messages: {
           orderBy: { createdAt: "asc" },
         },
+        usageRecords: true,
       },
     }),
   ]);

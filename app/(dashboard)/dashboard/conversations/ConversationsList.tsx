@@ -55,6 +55,12 @@ interface Conversation {
   visitor: Visitor | null;
   chatbot: Chatbot | null;
   messages: Message[];
+  usageRecords?: {
+    requestType: string;
+    cost: number;
+    audioDuration?: number;
+    characterCount?: number;
+  }[];
 }
 
 interface ConversationProduct {
@@ -160,6 +166,26 @@ export default function ConversationsList({
       container.scrollTop = container.scrollHeight;
     }
   }, [activeConversation?.id, activeView]);
+
+  // Scroll into view on mobile/tablet viewports when selectedBotId changes
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024 && selectedBotId) {
+      const panel = document.getElementById("conversation-inbox-list");
+      if (panel) {
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  }, [selectedBotId]);
+
+  // Scroll into view on mobile/tablet viewports when selectedChatId changes
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024 && selectedChatId) {
+      const panel = document.getElementById("conversation-detail-panel");
+      if (panel) {
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  }, [selectedChatId]);
 
   // Export CSV of currently filtered list
   const handleExport = () => {
@@ -309,7 +335,7 @@ export default function ConversationsList({
         </div>
 
         {/* Panel 2: Inbox Stream List (col-span-4) */}
-        <div className="lg:col-span-4 flex flex-col bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] rounded-2xl overflow-hidden lg:h-full">
+        <div id="conversation-inbox-list" className="lg:col-span-4 flex flex-col bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] rounded-2xl overflow-hidden lg:h-full">
           {/* Filters area */}
           <div className="p-3 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)]/20 space-y-3">
             {/* Search Input */}
@@ -445,7 +471,7 @@ export default function ConversationsList({
         </div>
 
         {/* Panel 3: Selected Conversation Detail Reader (col-span-5) */}
-        <div className="lg:col-span-5 flex flex-col bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] rounded-2xl overflow-hidden lg:h-full">
+        <div id="conversation-detail-panel" className="lg:col-span-5 flex flex-col bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] rounded-2xl overflow-hidden lg:h-full">
           {!activeConversation ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-3">
               <MessageSquare className="w-10 h-10 text-[var(--text-muted)] animate-pulse" />
@@ -516,9 +542,11 @@ export default function ConversationsList({
                   <div className="flex items-center gap-1">
                     <DollarSign className="w-3 h-3 text-[var(--text-muted)]" />
                     <span>
-                      ${activeConversation.messages
-                        .reduce((sum, m) => sum + (Number(m.cost) || 0), 0)
-                        .toFixed(4)}
+                      ${(() => {
+                        const llmCost = activeConversation.messages.reduce((sum, m) => sum + (Number(m.cost) || 0), 0);
+                        const voiceCost = activeConversation.usageRecords?.reduce((sum, r) => sum + (Number(r.cost) || 0), 0) || 0;
+                        return (llmCost + voiceCost).toFixed(4);
+                      })()}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
@@ -651,6 +679,61 @@ export default function ConversationsList({
                       </div>
                     </div>
                   </div>
+
+                  {/* Voice Assistant Metrics */}
+                  {activeConversation.usageRecords && activeConversation.usageRecords.length > 0 && (
+                    <div className="space-y-1.5 animate-fade-in-up">
+                      <h5 className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">
+                        Voice Assistant Metrics
+                      </h5>
+                      <div className="p-3 rounded-xl bg-[var(--bg-tertiary)]/50 border border-[var(--border-primary)] space-y-3 text-xs text-[var(--text-secondary)]">
+                        {(() => {
+                          const sttRecords = activeConversation.usageRecords?.filter((r) => r.requestType === "STT") || [];
+                          const ttsRecords = activeConversation.usageRecords?.filter((r) => r.requestType === "TTS") || [];
+
+                          const sttRequests = sttRecords.length;
+                          const sttDuration = sttRecords.reduce((sum, r) => sum + (r.audioDuration || 0), 0);
+                          const ttsRequests = ttsRecords.length;
+                          const ttsCharacters = ttsRecords.reduce((sum, r) => sum + (r.characterCount || 0), 0);
+                          const voiceCost = activeConversation.usageRecords?.reduce((sum, r) => sum + (r.cost || 0), 0) || 0;
+                          const llmCost = activeConversation.messages.reduce((sum, m) => sum + (Number(m.cost) || 0), 0);
+
+                          return (
+                            <>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <span className="text-[9px] text-[var(--text-muted)] block">STT Requests & Duration</span>
+                                  <span className="font-semibold text-[var(--text-primary)]">
+                                    {sttRequests} reqs · {Math.round(sttDuration)}s
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-[var(--text-muted)] block">TTS Requests & Chars</span>
+                                  <span className="font-semibold text-[var(--text-primary)]">
+                                    {ttsRequests} reqs · {ttsCharacters.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="pt-2 border-t border-[var(--border-primary)]/40 grid grid-cols-3 gap-2 text-[9px]">
+                                <div>
+                                  <span className="text-[var(--text-muted)] block">LLM Cost</span>
+                                  <span className="font-semibold text-[var(--text-secondary)] font-mono">${llmCost.toFixed(4)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[var(--text-muted)] block">Voice Cost</span>
+                                  <span className="font-semibold text-[var(--text-secondary)] font-mono">${voiceCost.toFixed(4)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[var(--text-muted)] block">Total Cost</span>
+                                  <span className="font-bold text-[var(--brand-emerald)] font-mono">${(llmCost + voiceCost).toFixed(4)}</span>
+                                </div>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

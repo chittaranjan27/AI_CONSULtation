@@ -44,7 +44,7 @@ const RAG_MIN_MESSAGE_LENGTH = 50;
  * early intake steps, and onFinish writes are batched.
  */
 export async function createChatCompletion(config: ChatConfig) {
-  const { chatbotId, tenantId, messages } = config;
+  const { chatbotId, tenantId, conversationId, messages } = config;
 
   // ── PHASE 1: Parallel DB Lookups ──
   // Fire all independent queries simultaneously instead of sequentially
@@ -285,6 +285,7 @@ Do NOT call the 'show_options' tool. Ask a warm, professional question and let t
   // ── PHASE 4: Stream the AI Response ──
   const model = getAIModel(provider, apiKey, modelId);
 
+  const streamStartTime = Date.now();
   const result = streamText({
     model,
     system: systemPrompt,
@@ -396,6 +397,7 @@ Do NOT call the 'show_options' tool. Ask a warm, professional question and let t
       // ── PHASE 5: Parallel Post-Stream DB Writes ──
       // All writes are independent of each other — fire them in parallel
       try {
+        const latencyMs = Date.now() - streamStartTime;
         const inputTokens = usage?.inputTokens || 0;
         const outputTokens = usage?.outputTokens || 0;
         const totalTokens = inputTokens + outputTokens;
@@ -489,7 +491,7 @@ Do NOT call the 'show_options' tool. Ask a warm, professional question and let t
               cost,
               provider: chatbot.aiProvider,
               model: modelId,
-              latencyMs: 0,
+              latencyMs,
               metadata: (Object.keys(messageMetadata).length > 0 ? messageMetadata : null) as Prisma.InputJsonValue,
             },
           })
@@ -501,12 +503,46 @@ Do NOT call the 'show_options' tool. Ask a warm, professional question and let t
             data: {
               tenantId,
               chatbotId,
+              conversationId,
               provider: chatbot.aiProvider,
               model: modelId,
               inputTokens,
               outputTokens,
               totalTokens,
+              requestType: "LLM",
               cost,
+            },
+          })
+        );
+
+        // 5. Update DailyStats aggregates (mirrors what voice routes do for STT/TTS)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        writes.push(
+          prisma.dailyStats.upsert({
+            where: {
+              tenantId_chatbotId_date: { tenantId, chatbotId, date: today },
+            },
+            create: {
+              tenantId,
+              chatbotId,
+              date: today,
+              messages: 1,
+              inputTokens,
+              outputTokens,
+              totalTokens,
+              chatCost: cost,
+              totalCost: cost,
+              avgResponseTime: latencyMs,
+            },
+            update: {
+              messages: { increment: 1 },
+              inputTokens: { increment: inputTokens },
+              outputTokens: { increment: outputTokens },
+              totalTokens: { increment: totalTokens },
+              chatCost: { increment: cost },
+              totalCost: { increment: cost },
             },
           })
         );

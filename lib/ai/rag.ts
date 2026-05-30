@@ -6,6 +6,29 @@ interface RAGContext {
   augmentedPrompt: string;
 }
 
+interface CachedChunk {
+  content: string;
+  embedding: number[];
+  filename: string;
+}
+
+// Global cache variable to persist across hot reloads in development
+const globalForRAGCache = globalThis as unknown as {
+  ragCache: Map<string, { chunks: CachedChunk[]; timestamp: number }> | undefined;
+};
+
+export const ragCache = globalForRAGCache.ragCache ?? new Map<string, { chunks: CachedChunk[]; timestamp: number }>();
+if (process.env.NODE_ENV !== "production") {
+  globalForRAGCache.ragCache = ragCache;
+}
+
+/**
+ * Invalidate RAG cache entry when documents are uploaded or modified.
+ */
+export function invalidateRAGCache(chatbotId: string) {
+  ragCache.delete(chatbotId);
+}
+
 /**
  * RAG orchestrator: retrieve relevant knowledge base chunks for a chatbot query.
  *
@@ -22,35 +45,42 @@ export async function retrieveContext(
   topK: number = 5,
   minSimilarity: number = 0.3
 ): Promise<RAGContext> {
-  // Check if chatbot has any document chunks
-  const chunkCount = await prisma.documentChunk.count({
-    where: { chatbotId },
-  });
+  let cachedData = ragCache.get(chatbotId);
 
-  if (chunkCount === 0) {
+  if (!cachedData) {
+    // Fetch all chunks for this chatbot from database
+    const allChunks = await prisma.documentChunk.findMany({
+      where: { chatbotId },
+      include: {
+        document: {
+          select: { filename: true },
+        },
+      },
+    });
+
+    const chunks = allChunks.map((chunk) => ({
+      content: chunk.content,
+      embedding: chunk.embedding,
+      filename: chunk.document.filename,
+    }));
+
+    cachedData = { chunks, timestamp: Date.now() };
+    ragCache.set(chatbotId, cachedData);
+  }
+
+  if (cachedData.chunks.length === 0) {
     return { chunks: [], augmentedPrompt: "" };
   }
 
   // Generate query embedding
   const queryEmbedding = await generateQueryEmbedding(query, embeddingApiKey);
 
-  // Fetch all chunks for this chatbot (for MVP, in-memory similarity)
-  // For production, use pgvector extension with <=> operator
-  const allChunks = await prisma.documentChunk.findMany({
-    where: { chatbotId },
-    include: {
-      document: {
-        select: { filename: true },
-      },
-    },
-  });
-
-  // Calculate similarity scores
-  const scored = allChunks
+  // Calculate similarity scores using cached chunks
+  const scored = cachedData.chunks
     .map((chunk) => ({
       content: chunk.content,
       similarity: cosineSimilarity(queryEmbedding, chunk.embedding),
-      source: chunk.document.filename,
+      source: chunk.filename,
     }))
     .filter((c) => c.similarity >= minSimilarity)
     .sort((a, b) => b.similarity - a.similarity)
@@ -67,3 +97,4 @@ export async function retrieveContext(
 
   return { chunks: scored, augmentedPrompt };
 }
+

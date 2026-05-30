@@ -2,30 +2,28 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  const id = 'cmpjnrcfx0001f1a8psq8obcr';
-  const tenantId = 'cmpha2an80000f1p4n3z0rxhx';
-
-  console.log("Running findUnique...");
+  console.log("Fetching all documents...");
   try {
-    const chatbot = await prisma.chatbot.findUnique({
-      where: { id, tenantId }
+    const docs = await prisma.document.findMany({
+      select: {
+        id: true,
+        filename: true,
+        fileType: true,
+        fileSize: true,
+        status: true,
+        chunkCount: true,
+        chatbotId: true,
+      }
     });
-    console.log("findUnique result:", chatbot);
-  } catch (err) {
-    console.error("findUnique failed with error:", err.message);
-  }
+    console.log("Documents in DB:", docs);
 
-  console.log("\nRunning findFirst...");
-  try {
-    const chatbotFirst = await prisma.chatbot.findFirst({
-      where: { id, tenantId }
-    });
-    console.log("findFirst result:", chatbotFirst);
+    const chunkCount = await prisma.documentChunk.count();
+    console.log("Total DocumentChunks in DB:", chunkCount);
   } catch (err) {
-    console.error("findFirst failed with error:", err.message);
+    console.error("Database query failed:", err);
+  } finally {
+    await prisma.$disconnect();
   }
-
-  await prisma.$disconnect();
 }
 
 main().catch(console.error);

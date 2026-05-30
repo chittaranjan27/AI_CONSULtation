@@ -59,6 +59,21 @@ export const TOKEN_COSTS: Record<string, { input: number; output: number }> = {
   "mixtral-8x7b-32768": { input: 0.00024, output: 0.00024 },
 };
 
+// Cost estimates for voice services (STT & TTS)
+// STT: cost per second of audio processed
+// TTS: cost per character synthesized
+export const VOICE_COSTS: Record<string, { ratePerSecond?: number; ratePerCharacter?: number }> = {
+  // Sarvam AI
+  "saaras:v3": { ratePerSecond: 0.000033 },          // STT: ~₹0.15/min ≈ $0.002/min
+  "bulbul:v3": { ratePerCharacter: 0.00024 },         // TTS: ~$0.24 per 1K chars
+  // OpenAI
+  "whisper-1": { ratePerSecond: 0.0001 },             // STT: $0.006/min
+  "tts-1": { ratePerCharacter: 0.000015 },            // TTS: $15.00 per 1M chars
+  // Browser (free)
+  "browser-stt": { ratePerSecond: 0 },
+  "browser-tts": { ratePerCharacter: 0 },
+};
+
 /**
  * Get a Vercel AI SDK compatible language model instance.
  */

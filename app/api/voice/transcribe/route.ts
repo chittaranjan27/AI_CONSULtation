@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/db/prisma";
+import { getChatbotTenant } from "@/lib/db/cache";
+import { VOICE_COSTS } from "@/lib/ai/providers";
 
 // Language code mapping: short code → BCP-47 locale for Sarvam AI
 const LANGUAGE_MAP: Record<string, string> = {
@@ -28,6 +31,9 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const audioFile = formData.get("audio") as File | null;
     const language = (formData.get("language") as string) || "en";
+    const chatbotId = (formData.get("chatbotId") as string) || null;
+    const conversationId = (formData.get("conversationId") as string) || null;
+    const duration = parseFloat((formData.get("duration") as string) || "0") || 0;
 
     if (!audioFile) {
       return NextResponse.json(
@@ -64,6 +70,10 @@ export async function POST(req: NextRequest) {
       }
 
       const data = await response.json();
+
+      // Log STT usage (OpenAI Whisper) — fire-and-forget
+      logSTTUsage(chatbotId, conversationId, "OPENAI", "whisper-1", duration);
+
       return NextResponse.json({
         transcript: data.text || "",
       });
@@ -103,6 +113,9 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
 
+    // Log STT usage (Sarvam AI) — fire-and-forget
+    logSTTUsage(chatbotId, conversationId, "SARVAM", "saaras:v3", duration);
+
     return NextResponse.json({
       transcript: data.transcript || data.text || "",
     });
@@ -112,5 +125,73 @@ export async function POST(req: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Log STT usage to the database asynchronously (fire-and-forget).
+ * Resolves tenantId from chatbotId and writes UsageRecord + DailyStats.
+ */
+async function logSTTUsage(
+  chatbotId: string | null,
+  conversationId: string | null,
+  provider: "OPENAI" | "SARVAM",
+  model: string,
+  duration: number
+) {
+  if (!chatbotId) return;
+
+  try {
+    const chatbot = await getChatbotTenant(chatbotId);
+    if (!chatbot) return;
+
+    const tenantId = chatbot.tenantId;
+    const costConfig = VOICE_COSTS[model];
+    const estimatedCost = duration * (costConfig?.ratePerSecond ?? 0);
+
+    // Strip time from date for DailyStats date-only key
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    await Promise.all([
+      prisma.usageRecord.create({
+        data: {
+          tenantId,
+          chatbotId,
+          conversationId,
+          provider,
+          model,
+          audioDuration: duration,
+          requestType: "STT",
+          cost: estimatedCost,
+        },
+      }),
+      prisma.dailyStats.upsert({
+        where: {
+          tenantId_chatbotId_date: {
+            tenantId,
+            chatbotId,
+            date: today,
+          },
+        },
+        create: {
+          tenantId,
+          chatbotId,
+          date: today,
+          sttRequests: 1,
+          sttDuration: duration,
+          voiceCost: estimatedCost,
+          totalCost: estimatedCost,
+        },
+        update: {
+          sttRequests: { increment: 1 },
+          sttDuration: { increment: duration },
+          voiceCost: { increment: estimatedCost },
+          totalCost: { increment: estimatedCost },
+        },
+      }),
+    ]);
+  } catch (err) {
+    console.error("Failed logging STT usage:", err);
   }
 }

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { chunkText } from "@/lib/ai/chunker";
 import { generateEmbeddings } from "@/lib/ai/embeddings";
+import { invalidateRAGCache } from "@/lib/ai/rag";
 import * as pdfParse from "pdf-parse";
 import * as xlsx from "xlsx";
 
@@ -139,6 +140,8 @@ export async function POST(req: Request) {
         chunkIndex: chunk.chunkIndex,
       })),
     });
+
+    invalidateRAGCache(chatbotId);
 
     return NextResponse.json({
       documentId: document.id,

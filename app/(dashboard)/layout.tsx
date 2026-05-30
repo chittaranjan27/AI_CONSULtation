@@ -211,7 +211,7 @@ export default function DashboardLayout({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="h-[var(--nav-height)] flex items-center justify-between px-6 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] shrink-0">
+        <header className="h-[var(--nav-height)] flex items-center justify-between px-4 sm:px-6 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] shrink-0">
           {/* Mobile menu toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -284,7 +284,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -294,34 +294,77 @@ export default function DashboardLayout({
           onClick={() => setMobileMenuOpen(false)}
         >
           <div
-            className="w-[280px] h-full bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] p-4"
+            className="w-[280px] h-full bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] p-4 flex flex-col justify-between"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--brand-purple)] to-[var(--brand-blue)] flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
+            <div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--brand-purple)] to-[var(--brand-blue)] flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-base font-bold text-[var(--text-primary)]">
+                  AI<span className="gradient-text">Consultation</span>
+                </span>
               </div>
-              <span className="text-base font-bold text-[var(--text-primary)]">
-                AI<span className="gradient-text">Consultation</span>
-              </span>
+              <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-280px)]">
+                {mainNav.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`sidebar-link ${active ? "active" : ""}`}
+                    >
+                      <Icon className="w-[18px] h-[18px]" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
             </div>
-            <nav className="space-y-1">
-              {mainNav.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`sidebar-link ${active ? "active" : ""}`}
-                  >
-                    <Icon className="w-[18px] h-[18px]" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
+
+            {/* Mobile Sidebar Bottom Section */}
+            <div className="border-t border-[var(--border-primary)] pt-4 space-y-4">
+              <div className="space-y-1">
+                {bottomNav.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`sidebar-link ${active ? "active" : ""}`}
+                    >
+                      <Icon className="w-[18px] h-[18px]" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* User Section on Mobile */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-tertiary)]/50 border border-[var(--border-primary)]">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                    A
+                  </div>
+                  <div className="flex-grow min-w-0">
+                    <p className="text-xs font-medium text-[var(--text-primary)] truncate">Admin</p>
+                    <p className="text-[10px] text-[var(--text-tertiary)] truncate">Free Plan</p>
+                  </div>
+                </div>
+                <a
+                  href="/api/auth/logout"
+                  className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       )}

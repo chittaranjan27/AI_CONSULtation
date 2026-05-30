@@ -60,6 +60,7 @@ export default async function ChatbotEditorPage({ params }: Props) {
         messages: {
           orderBy: { createdAt: "asc" },
         },
+        usageRecords: true,
       },
     }),
     prisma.lead.findMany({

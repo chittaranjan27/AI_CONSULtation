@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
+import { getChatbotTenant } from "@/lib/db/cache";
 import { LeadStatus } from "@prisma/client";
 
 export async function POST(req: Request) {
@@ -12,10 +13,7 @@ export async function POST(req: Request) {
 
     if (chatbotId) {
       // Public widget submission: resolve tenantId from chatbotId
-      const chatbot = await prisma.chatbot.findUnique({
-        where: { id: chatbotId },
-        select: { tenantId: true, status: true },
-      });
+      const chatbot = await getChatbotTenant(chatbotId);
       if (!chatbot) {
         return new NextResponse("Chatbot not found", { status: 404 });
       }

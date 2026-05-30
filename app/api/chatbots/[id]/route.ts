@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
+import { invalidateChatbotCache } from "@/lib/db/cache";
 
 export async function GET(
   req: Request,
@@ -117,6 +118,8 @@ export async function PATCH(
       },
     });
 
+    invalidateChatbotCache(id);
+
     return NextResponse.json(chatbot);
   } catch (error) {
     console.error("[CHATBOT_PATCH]", error);
@@ -137,8 +140,13 @@ export async function DELETE(
     const { id } = await params;
 
     const chatbot = await prisma.chatbot.delete({
-      where: { id, tenantId: session.user.tenantId },
+      where: {
+        id,
+        tenantId: session.user.tenantId,
+      },
     });
+
+    invalidateChatbotCache(id);
 
     return NextResponse.json(chatbot);
   } catch (error) {
