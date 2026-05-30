@@ -54,6 +54,28 @@ export default function DashboardLayout({
   const sidebarMenuRef = useRef<HTMLDivElement>(null);
   const topBarMenuRef = useRef<HTMLDivElement>(null);
 
+  // Real user session state
+  const [currentUser, setCurrentUser] = useState<{
+    name: string;
+    email: string;
+    tenantPlan: string;
+  } | null>(null);
+
+  // Fetch the real logged-in user's info
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setCurrentUser(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const userName = currentUser?.name || "User";
+  const userEmail = currentUser?.email || "";
+  const userPlan = currentUser?.tenantPlan || "FREE";
+  const userInitial = userName.charAt(0).toUpperCase();
+
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -163,15 +185,15 @@ export default function DashboardLayout({
             }`}
           >
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-              A
+              {userInitial}
             </div>
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-                  Admin
+                  {userName}
                 </p>
                 <p className="text-[11px] text-[var(--text-tertiary)] truncate">
-                  Free Plan
+                  {userPlan} Plan
                 </p>
               </div>
             )}
@@ -183,8 +205,8 @@ export default function DashboardLayout({
               sidebarCollapsed ? "left-1/2 -translate-x-1/2" : "left-3 right-3"
             } bg-[var(--bg-elevated)] border border-[var(--border-primary)] rounded-xl shadow-xl overflow-hidden z-50 min-w-[180px]`}>
               <div className="p-3 border-b border-[var(--border-primary)]">
-                <p className="text-sm font-medium text-[var(--text-primary)] truncate">Admin</p>
-                <p className="text-[11px] text-[var(--text-tertiary)] truncate">kcd5567@gmail.com</p>
+                <p className="text-sm font-medium text-[var(--text-primary)] truncate">{userName}</p>
+                <p className="text-[11px] text-[var(--text-tertiary)] truncate">{userEmail}</p>
               </div>
               <div className="p-1">
                 <Link
@@ -246,10 +268,10 @@ export default function DashboardLayout({
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-[var(--bg-glass-hover)] transition-colors"
               >
                 <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white">
-                  A
+                  {userInitial}
                 </div>
                 <span className="hidden sm:inline text-sm text-[var(--text-secondary)]">
-                  Admin
+                  {userName}
                 </span>
               </button>
 
@@ -257,8 +279,8 @@ export default function DashboardLayout({
               {topBarUserMenu && (
                 <div className="absolute right-0 top-full mt-2 w-56 bg-[var(--bg-elevated)] border border-[var(--border-primary)] rounded-xl shadow-xl overflow-hidden z-50">
                   <div className="p-3 border-b border-[var(--border-primary)]">
-                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">Admin</p>
-                    <p className="text-[11px] text-[var(--text-tertiary)] truncate">kcd5567@gmail.com</p>
+                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{userName}</p>
+                    <p className="text-[11px] text-[var(--text-tertiary)] truncate">{userEmail}</p>
                   </div>
                   <div className="p-1">
                     <Link
@@ -349,11 +371,11 @@ export default function DashboardLayout({
               <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-tertiary)]/50 border border-[var(--border-primary)]">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                    A
+                    {userInitial}
                   </div>
                   <div className="flex-grow min-w-0">
-                    <p className="text-xs font-medium text-[var(--text-primary)] truncate">Admin</p>
-                    <p className="text-[10px] text-[var(--text-tertiary)] truncate">Free Plan</p>
+                    <p className="text-xs font-medium text-[var(--text-primary)] truncate">{userName}</p>
+                    <p className="text-[10px] text-[var(--text-tertiary)] truncate">{userPlan} Plan</p>
                   </div>
                 </div>
                 <a

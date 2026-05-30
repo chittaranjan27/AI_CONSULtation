@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import prisma from "@/lib/db/prisma";
+
+const JWT_SECRET = process.env.NEXTAUTH_SECRET || "dev-secret-change-in-production-abc123def456";
+const SESSION_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,7 +52,14 @@ export async function POST(req: NextRequest) {
       data: { lastLoginAt: new Date() },
     });
 
-    // Set session cookie
+    // Create a signed JWT with the user's real ID
+    const token = jwt.sign(
+      { userId: user.id },
+      JWT_SECRET,
+      { expiresIn: SESSION_MAX_AGE }
+    );
+
+    // Set session cookie with JWT
     const response = NextResponse.json({
       success: true,
       message: "Logged in",
@@ -61,12 +72,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    response.cookies.set("admin_session", "true", {
+    response.cookies.set("session_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 30 * 24 * 60 * 60, // 30 days
+      maxAge: SESSION_MAX_AGE,
     });
 
     return response;

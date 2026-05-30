@@ -1,39 +1,58 @@
 import { cookies } from "next/headers";
+import jwt from "jsonwebtoken";
+import prisma from "@/lib/db/prisma";
 
 // ============================================
-// MOCK AUTH — Replaces NextAuth
-// Cookie-based session gate for admin access.
+// REAL AUTH — JWT-based session with DB lookup
+// Decodes the session_token cookie, looks up
+// the real user + tenant from the database.
 // ============================================
 
-const MOCK_TENANT_ID = "cmpha2an80000f1p4n3z0rxhx";
-const MOCK_TENANT_NAME = "nmc";
-const MOCK_TENANT_SLUG = "nmc-mpha2an2";
-const MOCK_TENANT_PLAN = "FREE";
-const MOCK_USER_EMAIL = "kcd5567@gmail.com";
-const MOCK_USER_NAME = "Admin";
-const MOCK_USER_ROLE = "TENANT_OWNER";
+const JWT_SECRET = process.env.NEXTAUTH_SECRET || "dev-secret-change-in-production-abc123def456";
 
 export async function auth() {
   const cookieStore = await cookies();
-  const session = cookieStore.get("admin_session");
+  const tokenCookie = cookieStore.get("session_token");
 
-  if (!session || session.value !== "true") {
+  if (!tokenCookie || !tokenCookie.value) {
     return null;
   }
 
-  return {
-    user: {
-      id: "mock-admin-user",
-      email: MOCK_USER_EMAIL,
-      name: MOCK_USER_NAME,
-      image: undefined,
-      role: MOCK_USER_ROLE as "SUPER_ADMIN" | "TENANT_OWNER" | "MANAGER" | "SUPPORT_AGENT" | "ANALYST",
-      tenantId: MOCK_TENANT_ID,
-      tenantName: MOCK_TENANT_NAME,
-      tenantSlug: MOCK_TENANT_SLUG,
-      tenantPlan: MOCK_TENANT_PLAN,
-    },
-  };
+  try {
+    // Verify and decode the JWT
+    const decoded = jwt.verify(tokenCookie.value, JWT_SECRET) as { userId: string };
+
+    if (!decoded?.userId) {
+      return null;
+    }
+
+    // Look up the real user + tenant from the database
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      include: { tenant: true },
+    });
+
+    if (!user || !user.isActive) {
+      return null;
+    }
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name || "User",
+        image: user.avatar || undefined,
+        role: user.role as "SUPER_ADMIN" | "TENANT_OWNER" | "MANAGER" | "SUPPORT_AGENT" | "ANALYST",
+        tenantId: user.tenantId,
+        tenantName: user.tenant.name,
+        tenantSlug: user.tenant.slug,
+        tenantPlan: user.tenant.plan,
+      },
+    };
+  } catch {
+    // JWT expired, invalid, or DB error — treat as unauthenticated
+    return null;
+  }
 }
 
 // Stub exports so any file importing these doesn't break

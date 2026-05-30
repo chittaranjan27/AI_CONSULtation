@@ -1,10 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 // GET — browser redirect (e.g. <a href="/api/auth/logout">)
-export async function GET() {
-  const response = NextResponse.redirect(new URL("/", process.env.NEXTAUTH_URL || "http://localhost:3000"));
+export async function GET(req: NextRequest) {
+  // Use the actual request origin so we don't break on http vs https mismatch
+  const redirectUrl = new URL("/login", req.url);
+  const response = NextResponse.redirect(redirectUrl);
 
-  response.cookies.set("admin_session", "", {
+  response.cookies.set("session_token", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -19,7 +21,7 @@ export async function GET() {
 export async function POST() {
   const response = NextResponse.json({ success: true, message: "Logged out" });
 
-  response.cookies.set("admin_session", "", {
+  response.cookies.set("session_token", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
