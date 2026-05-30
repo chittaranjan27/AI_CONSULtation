@@ -2142,7 +2142,7 @@ export default function EmbedChat({
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                {widgetConfig?.poweredBy || "AI Consultation BY NMC"}
+                {widgetConfig?.poweredBy || "Dialog NMC"}
               </span>
             </p>
           </div>
@@ -2780,7 +2780,7 @@ export default function EmbedChat({
                     WebkitTextFillColor: "transparent",
                   }}
                 >
-                  {widgetConfig?.poweredBy || "AI Consultation NMC"}
+                  {widgetConfig?.poweredBy || "Dialog NMC"}
                 </span>
               </p>
             </div>
@@ -3209,7 +3209,7 @@ export default function EmbedChat({
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                {widgetConfig?.poweredBy || "AI Consultation BY NMC"}
+                {widgetConfig?.poweredBy || "Dialog NMC"}
               </span>
             </p>
           </div>
