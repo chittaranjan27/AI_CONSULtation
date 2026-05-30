@@ -3268,17 +3268,7 @@ export default function EmbedChat({
           50% { opacity: 0.85; }
         }
         .voice-transcript-container {
-          max-height: 120px;
-        }
-        @media (min-height: 500px) {
-          .voice-transcript-container {
-            max-height: 180px;
-          }
-        }
-        @media (min-height: 650px) {
-          .voice-transcript-container {
-            max-height: 280px;
-          }
+          max-height: none;
         }
         .no-scrollbar::-webkit-scrollbar {
           display: none;
