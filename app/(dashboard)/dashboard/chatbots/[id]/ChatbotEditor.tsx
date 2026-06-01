@@ -178,70 +178,8 @@ interface EditorConsultationStep {
   options?: string[];
 }
 
-const DEFAULT_STEPS: EditorConsultationStep[] = [
-  {
-    stepNumber: 1,
-    title: "Concern Selection",
-    prompt: "Warmly welcome the user by name (if known). Use a professional, clinical, and empathetic tone appropriate for intimate wellness. Ask them what brings them here today. You MUST call the 'show_options' tool with these concern options: ['🌿 Intimate Itching & Irritation', '🌬️ Odor & Freshness Concerns', '🏃‍♂️ Sweat & Chafing (Active Lifestyle)', '✨ Daily Hygiene & pH Care', '❓ Something Else']. Do NOT answer other questions or offer products yet. After they select an option, call 'update_consultation_step' with stepNumber 2.",
-    inputType: "options",
-    options: [
-      "🌿 Intimate Itching & Irritation",
-      "🌬️ Odor & Freshness Concerns",
-      "🏃‍♂️ Sweat & Chafing (Active Lifestyle)",
-      "✨ Daily Hygiene & pH Care",
-      "❓ Something Else"
-    ]
-  },
-  {
-    stepNumber: 2,
-    title: "Single Follow-up Question",
-    prompt: "Briefly acknowledge the concern they selected with empathy and clinical understanding (1 sentence max). Ask EXACTLY ONE relevant follow-up question to understand their lifestyle or duration of the issue.\n\nYou MUST call the 'show_options' tool to display the appropriate sub-options. Identify what the user selected in Step 1, and present the corresponding array of choices:\n\n- If selection was \"🌿 Intimate Itching & Irritation\":\n  Use options: ['Less than a week', '1-4 weeks', 'Over a month', 'Recurring issue']\n  \n- If selection was \"🌬️ Odor & Freshness Concerns\":\n  Use options: ['After workouts', 'Throughout the day', 'Mostly in hot weather', 'All the time']\n  \n- If selection was \"🏃‍♂️ Sweat & Chafing (Active Lifestyle)\":\n  Use options: ['During/After workouts', 'Throughout the work day', 'Mostly in hot weather']\n  \n- If selection was \"✨ Daily Hygiene & pH Care\":\n  Use options: ['Currently use body soap', 'Use nothing specific', 'Already use an intimate wash']\n  \n- If selection was \"❓ Something Else\":\n  Use options: ['General wellness routine', 'Product recommendations', 'Hygiene tips']\n  \nAfter they answer, call 'update_consultation_step' with stepNumber 3.",
-    inputType: "options",
-    options: []
-  },
-  {
-    stepNumber: 3,
-    title: "Clinical Explanation & Recommendation Offer",
-    prompt: "Provide a short, plain-language clinical explanation (2-3 sentences) of WHY their selected concern happens (e.g., pH imbalance for itching/odor, skin friction for chafing, harsh soap disrupting microbiome for daily care). Do NOT ask another diagnostic question. Then ask if they would like to see a natural, pH-balanced wash designed specifically to address this. You MUST call the 'show_options' tool with options: ['✅ Yes, show me the solution', '🚫 No, thank you']. If they select 'Yes', call 'update_consultation_step' with stepNumber 4. If they select 'No', call 'update_consultation_step' with stepNumber 6.",
-    inputType: "options",
-    options: [
-      "✅ Yes, show me the solution",
-      "🚫 No, thank you"
-    ]
-  },
-  {
-    stepNumber: 4,
-    title: "Product Display",
-    prompt: "The user expressed interest. Call the 'fetch_products' tool to display the BrahmaGra product catalog on screen. In your text response, mention ONLY the product name and a very brief description/benefit (1 sentence). Let the product card display the remaining details, pricing, and specs. Avoid repeating pricing or long descriptions in your message. Say something like: \"I recommend the [Product Name], [Short Description] — check the product card below for all details.\" Keep your text to 1-2 sentences only and let the product card do the talking. You MUST call the 'show_options' tool with options: ['💳 I'd like to buy this', '📋 Tell me more about the ingredients', '🤔 I have other questions']. After they respond, call 'update_consultation_step' with stepNumber 5.",
-    inputType: "options",
-    options: [
-      "💳 I'd like to buy this",
-      "📋 Tell me more about the ingredients",
-      "🤔 I have other questions"
-    ]
-  },
-  {
-    stepNumber: 5,
-    title: "Product Benefits & Checkout Guidance",
-    prompt: "Based on the user's response from Step 4: If they want to buy, guide them to use the 'Buy Now' button on the product card displayed above. If they asked about ingredients, do NOT write long ingredient lists or repeat product card details; briefly mention that the product has a pH-balanced formula (pH 5.5) with natural extracts (Tea Tree, Aloe Vera, Neem), and point them to the product card for the full list. If they had other questions, answer them very concisely using your knowledge base. Keep your response very brief and let the product card display the rest. You MUST call the 'show_options' tool with options: ['🛒 Proceed to checkout', '💬 I have another concern', '👋 That's all, thank you']. If they select 'another concern', call 'update_consultation_step' with stepNumber 1. If they select 'that's all', call 'update_consultation_step' with stepNumber 6.",
-    inputType: "options",
-    options: [
-      "🛒 Proceed to checkout",
-      "💬 I have another concern",
-      "👋 That's all, thank you"
-    ]
-  },
-  {
-    stepNumber: 6,
-    title: "Warp-up & Farewell",
-    prompt: "Politely wrap up the conversation. Reassure them that intimate wellness is important and they made a great step by having this conversation. Let them know they can return anytime for more guidance. You MUST call the 'show_options' tool with options: ['🔄 Start a new consultation', '👋 End chat']. If they select 'Start a new consultation', call 'update_consultation_step' with stepNumber 1.",
-    inputType: "options",
-    options: [
-      "🔄 Start a new consultation",
-      "👋 End chat"
-    ]
-  }
-];
+// No hardcoded default steps — users build their own intake flow from scratch.
+const DEFAULT_STEPS: EditorConsultationStep[] = [];
 
 export default function ChatbotEditor({
   chatbot,
@@ -303,7 +241,7 @@ export default function ChatbotEditor({
         })
         .sort((a, b) => a.stepNumber - b.stepNumber);
     }
-    return DEFAULT_STEPS;
+    return [];
   });
   const [isStepModalOpen, setIsStepModalOpen] = useState(false);
   const [editingStep, setEditingStep] = useState<EditorConsultationStep | null>(null);
@@ -628,10 +566,7 @@ export default function ChatbotEditor({
     setIsStepModalOpen(false);
   };
 
-  const handleRestoreDefaultSteps = () => {
-    if (!confirm("Are you sure you want to restore the default 6-step intake consultation template? This will overwrite your current steps.")) return;
-    setConsultationSteps(DEFAULT_STEPS);
-  };
+
 
   const handleMoveStep = (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
@@ -786,11 +721,10 @@ export default function ChatbotEditor({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                activeTab === tab.id
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab.id
                   ? "bg-[var(--brand-purple)]/10 text-[var(--brand-purple)] border border-[var(--brand-purple)]/20"
                   : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)]"
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4" />
               {tab.label}
@@ -881,26 +815,24 @@ export default function ChatbotEditor({
                   <h4 className="text-sm font-semibold text-[var(--text-primary)]">Daily Token & Cost Usage</h4>
                   <p className="text-xs text-[var(--text-tertiary)] mt-0.5">Month-to-date daily consumption</p>
                 </div>
-                
+
                 {/* Metric Toggle */}
                 <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-primary)] self-start">
                   <button
                     onClick={() => setTokenTrendMetric("tokens")}
-                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                      tokenTrendMetric === "tokens"
+                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${tokenTrendMetric === "tokens"
                         ? "bg-[var(--brand-purple)] text-white"
                         : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                    }`}
+                      }`}
                   >
                     Tokens Count
                   </button>
                   <button
                     onClick={() => setTokenTrendMetric("cost")}
-                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                      tokenTrendMetric === "cost"
+                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${tokenTrendMetric === "cost"
                         ? "bg-[var(--brand-purple)] text-white"
                         : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                    }`}
+                      }`}
                   >
                     Estimated Cost
                   </button>
@@ -1082,14 +1014,12 @@ export default function ChatbotEditor({
                 <button
                   type="button"
                   onClick={() => setLeadCaptureEnabled(!leadCaptureEnabled)}
-                  className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${
-                    leadCaptureEnabled ? "bg-[var(--brand-emerald)]" : "bg-[var(--bg-glass-hover)]"
-                  }`}
+                  className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${leadCaptureEnabled ? "bg-[var(--brand-emerald)]" : "bg-[var(--bg-glass-hover)]"
+                    }`}
                 >
                   <div
-                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${
-                      leadCaptureEnabled ? "left-[22px]" : "left-0.5"
-                    }`}
+                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${leadCaptureEnabled ? "left-[22px]" : "left-0.5"
+                      }`}
                   />
                 </button>
               </div>
@@ -1118,11 +1048,10 @@ export default function ChatbotEditor({
                             : [...prev, lang.code]
                         );
                       }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border ${
-                        isSelected
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border ${isSelected
                           ? "bg-purple-500/15 border-purple-500/30 text-purple-300 shadow-[0_0_12px_rgba(139,92,246,0.1)]"
                           : "bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-tertiary)] hover:border-[var(--border-secondary)] hover:text-[var(--text-secondary)]"
-                      }`}
+                        }`}
                     >
                       <span className="text-sm">{lang.flag}</span>
                       {lang.name}
@@ -1216,20 +1145,20 @@ export default function ChatbotEditor({
             {widgetMode === "FLOATING" && (
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-[var(--text-secondary)]">Widget Position</label>
-              <div className="grid grid-cols-2 gap-3">
-                {["BOTTOM_RIGHT", "BOTTOM_LEFT", "TOP_RIGHT", "TOP_LEFT"].map((pos) => (
-                  <button key={pos} onClick={() => setWidgetPosition(pos)} className={`p-3 rounded-xl border text-sm font-medium transition-all ${widgetPosition === pos ? "bg-[var(--brand-purple)]/10 border-[var(--brand-purple)]/30 text-[var(--brand-purple)]" : "bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--border-secondary)]"}`}>
-                    {pos.replace("_", " ").toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())}
-                  </button>
-                ))}
+                <div className="grid grid-cols-2 gap-3">
+                  {["BOTTOM_RIGHT", "BOTTOM_LEFT", "TOP_RIGHT", "TOP_LEFT"].map((pos) => (
+                    <button key={pos} onClick={() => setWidgetPosition(pos)} className={`p-3 rounded-xl border text-sm font-medium transition-all ${widgetPosition === pos ? "bg-[var(--brand-purple)]/10 border-[var(--brand-purple)]/30 text-[var(--brand-purple)]" : "bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--border-secondary)]"}`}>
+                      {pos.replace("_", " ").toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase())}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-             )}
+            )}
 
             {/* Customizable Aesthetics */}
             <div className="border-t border-[var(--border-primary)] pt-6 space-y-4">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">Customizable Aesthetics</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-[var(--text-secondary)]">Bot Avatar Icon URL</label>
@@ -1293,17 +1222,16 @@ export default function ChatbotEditor({
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Direct File Upload</h3>
                 <p className="text-xs text-[var(--text-tertiary)]">Upload PDF, Excel, CSV, or TXT documents to automatically chunk and embed.</p>
-                
+
                 <div
                   onDragEnter={handleDrag}
                   onDragOver={handleDrag}
                   onDragLeave={handleDrag}
                   onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-all flex flex-col items-center justify-center relative ${
-                    isDragActive
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-all flex flex-col items-center justify-center relative ${isDragActive
                       ? "border-[var(--brand-purple)] bg-[var(--brand-purple)]/5"
                       : "border-[var(--border-primary)] bg-[var(--bg-tertiary)] hover:border-[var(--border-secondary)]"
-                  }`}
+                    }`}
                 >
                   <input
                     type="file"
@@ -1313,7 +1241,7 @@ export default function ChatbotEditor({
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     disabled={fileUploadLoading}
                   />
-                  
+
                   {fileUploadLoading ? (
                     <div className="space-y-3">
                       <Loader2 className="w-8 h-8 animate-spin text-[var(--brand-purple)] mx-auto" />
@@ -1388,13 +1316,12 @@ export default function ChatbotEditor({
                     {documents.map((doc) => (
                       <div key={doc.id} className="flex items-center justify-between p-3.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-primary)] hover:border-[var(--border-secondary)] transition-colors">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                            doc.fileType === "pdf"
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${doc.fileType === "pdf"
                               ? "bg-red-500/10 text-red-400 border border-red-500/20"
                               : doc.fileType === "xlsx" || doc.fileType === "xls" || doc.fileType === "csv"
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                          }`}>
+                                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                            }`}>
                             <FileText className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -1429,13 +1356,6 @@ export default function ChatbotEditor({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={handleRestoreDefaultSteps}
-                  className="px-3.5 py-1.5 rounded-xl border border-[var(--border-primary)] hover:bg-[var(--bg-glass-hover)] text-xs font-semibold text-[var(--text-secondary)] transition-colors cursor-pointer"
-                >
-                  Restore Defaults
-                </button>
-                <button
-                  type="button"
                   onClick={handleStepCreateOpen}
                   className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 cursor-pointer"
                 >
@@ -1458,10 +1378,10 @@ export default function ChatbotEditor({
                 </div>
                 <button
                   type="button"
-                  onClick={handleRestoreDefaultSteps}
+                  onClick={handleStepCreateOpen}
                   className="btn-primary text-[10px] py-1.5 px-3 cursor-pointer"
                 >
-                  Load Default Template
+                  Add First Step
                 </button>
               </div>
             ) : (
@@ -1483,11 +1403,10 @@ export default function ChatbotEditor({
                           <h4 className="text-xs font-bold text-[var(--text-primary)]">
                             {step.title}
                           </h4>
-                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-medium ${
-                            (step.inputType || "options") === "options"
+                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-medium ${(step.inputType || "options") === "options"
                               ? "bg-[var(--brand-purple)]/10 text-[var(--brand-purple)] border border-[var(--brand-purple)]/20"
                               : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          }`}>
+                            }`}>
                             {(step.inputType || "options") === "options" ? "🔘 Clickable Options" : "⌨️ Free Text Input"}
                           </span>
                         </div>
@@ -1584,7 +1503,7 @@ export default function ChatbotEditor({
                         className="w-full px-3 py-2 rounded-xl text-xs bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-primary)] outline-none focus:border-[var(--brand-purple)] focus:ring-2 focus:ring-[var(--brand-purple)]/20 transition-all"
                       />
                     </div>
-                    
+
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-semibold block text-[var(--text-secondary)]">
                         Input Interaction Style *

@@ -414,11 +414,10 @@ export default function ChatbotsList({ initialChatbots }: ChatbotsListProps) {
                         key={lang.code}
                         type="button"
                         onClick={() => toggleLanguage(lang.code)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border ${
-                          isSelected
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border ${isSelected
                             ? "bg-purple-500/15 border-purple-500/30 text-purple-300 shadow-[0_0_12px_rgba(139,92,246,0.1)]"
                             : "bg-[var(--bg-tertiary)] border-[var(--border-primary)] text-[var(--text-tertiary)] hover:border-[var(--border-secondary)] hover:text-[var(--text-secondary)]"
-                        }`}
+                          }`}
                       >
                         <span className="text-sm">{lang.flag}</span>
                         {lang.name}

@@ -9,11 +9,23 @@ interface Props {
 
 export default async function ChatbotEditorPage({ params }: Props) {
   const session = await auth();
+  
+  // DEBUG: Log session state to terminal
+  console.log("[CHATBOT_PAGE_DEBUG]", {
+    hasSession: !!session,
+    userId: session?.user?.id || "NONE",
+    email: session?.user?.email || "NONE",
+    tenantId: session?.user?.tenantId || "NONE",
+  });
+
   if (!session?.user?.tenantId) {
     redirect("/login");
   }
 
   const { id } = await params;
+  
+  // DEBUG: Log the chatbot query
+  console.log("[CHATBOT_PAGE_DEBUG] Looking for chatbot:", { chatbotId: id, userTenantId: session.user.tenantId });
 
   // Fetch month-to-date usage records date boundaries
   const now = new Date();
