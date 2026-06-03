@@ -263,7 +263,7 @@ export default function EmbedChat({
       mediaStreamRef.current = null;
     }
     if (analyserIntervalRef.current) {
-      clearInterval(analyserIntervalRef.current);
+      cancelAnimationFrame(analyserIntervalRef.current as unknown as number);
       analyserIntervalRef.current = null;
     }
     setAudioLevel(0);
@@ -389,7 +389,8 @@ export default function EmbedChat({
 
           const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-          analyserIntervalRef.current = setInterval(() => {
+          let rafId: number;
+          const updateLevel = () => {
             analyser.getByteFrequencyData(dataArray);
             let sum = 0;
             const voiceStart = 2;
@@ -399,7 +400,10 @@ export default function EmbedChat({
             }
             const avg = sum / (voiceEnd - voiceStart);
             setAudioLevel(avg);
-          }, 100);
+            rafId = requestAnimationFrame(updateLevel);
+          };
+          rafId = requestAnimationFrame(updateLevel);
+          analyserIntervalRef.current = rafId as unknown as ReturnType<typeof setInterval>;
         } catch (err) {
           console.warn("Could not start visualizer media stream:", err);
         }
@@ -801,7 +805,7 @@ export default function EmbedChat({
           // Short delay so the user hears the farewell fully before the UI transitions
           setTimeout(() => {
             handleEndAndResetRef.current();
-          }, 1200);
+          }, 600);
           return;
         }
         setVoiceState("idle");
@@ -834,7 +838,21 @@ export default function EmbedChat({
       if (!audio) throw new Error("Empty audio returned");
 
       const mimeType = format === "mp3" ? "audio/mpeg" : "audio/wav";
-      const audioEl = new Audio(`data:${mimeType};base64,${audio}`);
+      
+      // Use Blob URL instead of base64 data URL to save memory
+      const binaryString = atob(audio);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+      
+      const audioEl = new Audio(blobUrl);
+      // Clean up blob URL when done playing to free memory
+      audioEl.addEventListener("ended", () => URL.revokeObjectURL(blobUrl), { once: true });
+      audioEl.addEventListener("error", () => URL.revokeObjectURL(blobUrl), { once: true });
+      
       audioMapRef.current[index] = audioEl;
 
       // Try playing the next item in case the player was idle
@@ -1056,7 +1074,13 @@ export default function EmbedChat({
     setIsStreaming(false);
     setChatError(null);
 
-    const apiMessages = updatedMessages.map((m) => ({
+    // Trim history to last 10 messages (5 turns) to save tokens & latency
+    const MAX_HISTORY_MESSAGES = 10;
+    const trimmedMessages = updatedMessages.length > MAX_HISTORY_MESSAGES
+      ? updatedMessages.slice(-MAX_HISTORY_MESSAGES)
+      : updatedMessages;
+
+    const apiMessages = trimmedMessages.map((m) => ({
       id: m.id,
       role: m.role,
       parts: [{ type: "text", text: m.text }],
@@ -1487,7 +1511,13 @@ export default function EmbedChat({
     setIsStreaming(false);
     setChatError(null);
 
-    const apiMessages = updatedMessages.map((m) => ({
+    // Trim history to last 10 messages (5 turns) to save tokens & latency
+    const MAX_HISTORY_MESSAGES = 10;
+    const trimmedMessages = updatedMessages.length > MAX_HISTORY_MESSAGES
+      ? updatedMessages.slice(-MAX_HISTORY_MESSAGES)
+      : updatedMessages;
+
+    const apiMessages = trimmedMessages.map((m) => ({
       id: m.id,
       role: m.role,
       parts: [{ type: "text", text: m.text }],

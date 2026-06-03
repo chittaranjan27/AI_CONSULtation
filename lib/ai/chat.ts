@@ -315,7 +315,9 @@ Do NOT call the 'show_options' tool. Ask a warm, professional question and let t
       content: m.content,
     })),
     temperature: chatbot.temperature,
-    maxOutputTokens: chatbot.maxTokens,
+    // Voice mode should be concise (2-3 sentences ≈ 100-200 tokens).
+    // Cap at 300 to prevent LLM from rambling even if dashboard maxTokens is high.
+    maxOutputTokens: isVoice ? Math.min(chatbot.maxTokens, 300) : chatbot.maxTokens,
     tools: {
       show_options: tool({
         description: `Display clickable suggestion options/chips to the user for quick answers.${matchedStep && matchedStep.options && matchedStep.options.length > 0

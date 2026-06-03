@@ -1,5 +1,6 @@
 import { createChatCompletion } from "@/lib/ai/chat";
 import prisma from "@/lib/db/prisma";
+import { getChatbotTenant } from "@/lib/db/cache";
 
 /** Extract text from a UIMessage's parts array (AI SDK v6 format) */
 function extractText(message: { role: string; content?: string; parts?: Array<{ type: string; text?: string }> }): string {
@@ -25,10 +26,7 @@ export async function POST(req: Request) {
     // ── Parallel: Verify chatbot + create visitor simultaneously ──
     const needsVisitor = !visitorId && (visitorName || visitorEmail);
     const [chatbot, visitor] = await Promise.all([
-      prisma.chatbot.findUnique({
-        where: { id: chatbotId },
-        select: { id: true, tenantId: true, status: true },
-      }),
+      getChatbotTenant(chatbotId),
       needsVisitor
         ? prisma.visitor.create({
           data: {
@@ -61,7 +59,7 @@ export async function POST(req: Request) {
       const conversation = await prisma.conversation.create({
         data: {
           tenantId: chatbot.tenantId,
-          chatbotId: chatbot.id,
+          chatbotId: chatbotId,
           visitorId: resolvedVisitorId,
           status: "ACTIVE",
           language: "en",
@@ -72,44 +70,50 @@ export async function POST(req: Request) {
       });
       resolvedConversationId = conversation.id;
 
-      // Track new vs returning user + increment DailyStats conversations counter (fire-and-forget)
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Fire-and-forget: Track new vs returning user + increment DailyStats without blocking the stream
+      (async () => {
+        try {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
 
-      const isNewUser = resolvedVisitorId
-        ? await prisma.visitor.findUnique({
-            where: { id: resolvedVisitorId },
-            select: { firstSeenAt: true },
-          }).then(v => {
-            if (!v) return true;
-            const firstSeen = new Date(v.firstSeenAt);
-            firstSeen.setHours(0, 0, 0, 0);
-            return firstSeen.getTime() === today.getTime();
-          })
-        : true; // Anonymous = new
+          const isNewUser = resolvedVisitorId
+            ? await prisma.visitor.findUnique({
+                where: { id: resolvedVisitorId },
+                select: { firstSeenAt: true },
+              }).then(v => {
+                if (!v) return true;
+                const firstSeen = new Date(v.firstSeenAt);
+                firstSeen.setHours(0, 0, 0, 0);
+                return firstSeen.getTime() === today.getTime();
+              })
+            : true; // Anonymous = new
 
-      prisma.dailyStats.upsert({
-        where: {
-          tenantId_chatbotId_date: {
-            tenantId: chatbot.tenantId,
-            chatbotId: chatbot.id,
-            date: today,
-          },
-        },
-        create: {
-          tenantId: chatbot.tenantId,
-          chatbotId: chatbot.id,
-          date: today,
-          conversations: 1,
-          ...(isNewUser ? { newUsers: 1 } : { returningUsers: 1 }),
-        },
-        update: {
-          conversations: { increment: 1 },
-          ...(isNewUser
-            ? { newUsers: { increment: 1 } }
-            : { returningUsers: { increment: 1 } }),
-        },
-      }).catch(err => console.error("DailyStats upsert error:", err));
+          await prisma.dailyStats.upsert({
+            where: {
+              tenantId_chatbotId_date: {
+                tenantId: chatbot.tenantId,
+                chatbotId,
+                date: today,
+              },
+            },
+            create: {
+              tenantId: chatbot.tenantId,
+              chatbotId,
+              date: today,
+              conversations: 1,
+              ...(isNewUser ? { newUsers: 1 } : { returningUsers: 1 }),
+            },
+            update: {
+              conversations: { increment: 1 },
+              ...(isNewUser
+                ? { newUsers: { increment: 1 } }
+                : { returningUsers: { increment: 1 } }),
+            },
+          });
+        } catch (err) {
+          console.error("DailyStats conversation upsert error:", err);
+        }
+      })();
     }
 
     // Execute streaming chat completion
