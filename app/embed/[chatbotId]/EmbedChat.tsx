@@ -132,6 +132,7 @@ export default function EmbedChat({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const analyserIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasSpokenRef = useRef(false);
   const manualStopRef = useRef(false); // True when user manually clicked mic to stop
   const userPausedRef = useRef(false); // True when user intentionally paused — prevents auto-restart
@@ -454,7 +455,7 @@ export default function EmbedChat({
       silentGain.connect(audioContext.destination);
 
       const SPEECH_THRESHOLD = 15; // Reliable fixed threshold for voice frequencies
-      const SILENCE_DURATION = 1800; // 1.8s of silence to auto-stop
+      const SILENCE_DURATION = 1300; // 1.3s of silence to auto-stop (optimized for responsiveness)
       const MIN_SPEECH_DURATION = 400; // Must speak for at least 0.4s
       const CONSECUTIVE_FRAMES_REQUIRED = 2; // Require 2 consecutive frames above threshold
       let consecutiveSpeechFrames = 0; // Counter for sustained speech confirmation
@@ -576,10 +577,9 @@ export default function EmbedChat({
           let result = await attemptSTT(wavBlob, "recording.wav");
           let transcript = result.transcript;
 
-          // Smart retry: only retry on 5xx/network errors, not 400 (bad audio) or 429 (rate limit)
-          if (!transcript && result.status !== 400) {
-            const backoff = result.status === 429 ? 2000 : 500;
-            await new Promise(r => setTimeout(r, backoff));
+          // Only retry on server errors (5xx), not client errors (4xx)
+          if (!transcript && result.status >= 500) {
+            await new Promise(r => setTimeout(r, 300));
             result = await attemptSTT(wavBlob, "recording.wav");
             transcript = result.transcript;
           }
@@ -846,22 +846,57 @@ export default function EmbedChat({
     }
   }, [playNextInQueue]);
 
-  // ── Voice: Check if the text matches end call/chat options ──
+  // ── Voice: Check if the text matches end call/chat options (multilingual + fuzzy) ──
   const isEndChatOption = (text: string): boolean => {
-    const cleaned = text.toLowerCase().replace(/[^\w\s]/g, "").trim();
-    return (
-      cleaned === "end chat" ||
-      cleaned === "end consultation" ||
-      cleaned === "end call" ||
-      cleaned === "stop consultation" ||
-      cleaned === "quit consultation" ||
-      cleaned === "thats all thank you" ||
-      cleaned === "thats all" ||
-      cleaned === "no thank you" ||
-      cleaned === "no thanks" ||
-      cleaned === "goodbye" ||
-      cleaned === "bye"
-    );
+    const cleaned = text.toLowerCase().replace(/[^\w\s\u0900-\u097F\u0600-\u06FF]/g, "").trim();
+
+    // Exact matches (English)
+    const exactMatches = [
+      "end chat", "end consultation", "end call", "stop consultation",
+      "quit consultation", "thats all thank you", "thats all",
+      "no thank you", "no thanks", "goodbye", "bye", "bye bye",
+      "im done", "done", "stop", "exit", "quit", "finish",
+      "nothing else", "no more questions", "thats it",
+    ];
+    if (exactMatches.includes(cleaned)) return true;
+
+    // Partial/fuzzy English patterns
+    const partialPatterns = [
+      /\b(?:end|stop|finish|close|quit|exit)\s*(?:the\s+)?(?:chat|call|consultation|session|conversation)\b/,
+      /\b(?:im|i\s*am)\s+(?:done|finished|good)\b/,
+      /\b(?:no\s+more|nothing\s+(?:else|more)|thats?\s+(?:all|it|enough))\b/,
+      /\b(?:thank(?:s|\s*you).*(?:bye|goodbye|done|all))\b/,
+    ];
+    if (partialPatterns.some(p => p.test(cleaned))) return true;
+
+    // Hindi patterns
+    if (/(?:अलविदा|बस इतना ही|और कुछ नहीं|बंद करो|समाप्त|धन्यवाद.*बस)/.test(text)) return true;
+    // Arabic patterns
+    if (/(?:مع السلامة|وداعا|انتهى|لا شكرا|هذا كل شيء|إنهاء)/.test(text)) return true;
+    // Urdu patterns
+    if (/(?:خدا حافظ|اللہ حافظ|بس|شکریہ.*بس|ختم|الوداع)/.test(text)) return true;
+
+    return false;
+  };
+
+  // ── Voice: Detect farewell/conclusion patterns in AI response text (multilingual) ──
+  const isFarewellResponse = (text: string): boolean => {
+    const lower = text.toLowerCase();
+    const farewellPatterns = [
+      // English farewell markers
+      /\b(?:goodbye|good\s*bye|farewell|take\s+care|wishing\s+you\s+(?:good|the\s+best|well))\b/,
+      /\b(?:was\s+(?:nice|great|wonderful|a\s+pleasure)\s+(?:talking|chatting|speaking|helping))\b/,
+      /\b(?:feel\s+free\s+to\s+(?:come|reach|return|contact)\s+(?:back|out|again))\b/,
+      /\b(?:here\s+(?:anytime|whenever)\s+you\s+need)\b/,
+      /\b(?:have\s+a\s+(?:great|wonderful|lovely|nice|good)\s+(?:day|evening|night|time|one))\b/,
+      // Hindi
+      /(?:अलविदा|धन्यवाद.*शुभकामना|ख्याल\s*रख)/,
+      // Arabic
+      /(?:مع السلامة|وداعا|إلى اللقاء|اعتني بنفسك)/,
+      // Urdu
+      /(?:خدا حافظ|اللہ حافظ|الوداع|اپنا خیال رکھ)/,
+    ];
+    return farewellPatterns.some(pattern => pattern.test(lower));
   };
 
   // ── Voice: Check if AI's response suggestions signal the end of the consultation ──
@@ -933,10 +968,14 @@ export default function EmbedChat({
     sentTextLengthRef.current = 0;
     pcmChunksRef.current = [];
 
-    // 6. Clear silence timer
+    // 6. Clear silence timer and idle timeout
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
+    }
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = null;
     }
 
     // 7. Reset state and close voice mode
@@ -1161,6 +1200,8 @@ export default function EmbedChat({
                 if (suggestions.length > 0 && suggestionsContainEndIntent(suggestions)) {
                   consultationEndedRef.current = true;
                 }
+              } else if (data.toolName === "end_conversation" && data.result) {
+                consultationEndedRef.current = true;
               } else if (data.toolName === "fetch_products" && data.result) {
                 const products = Array.isArray(data.result) ? data.result : [];
                 setChatMessages((prev) =>
@@ -1209,6 +1250,8 @@ export default function EmbedChat({
                   if (suggestions.length > 0 && suggestionsContainEndIntent(suggestions)) {
                     consultationEndedRef.current = true;
                   }
+                } else if (toolName === "end_conversation") {
+                  consultationEndedRef.current = true;
                 } else if (toolName === "fetch_products" && output) {
                   const products = Array.isArray(output) ? output : [];
                   setChatMessages((prev) =>
@@ -1235,6 +1278,8 @@ export default function EmbedChat({
                   if (suggestions.length > 0 && suggestionsContainEndIntent(suggestions)) {
                     consultationEndedRef.current = true;
                   }
+                } else if (tName === "end_conversation") {
+                  consultationEndedRef.current = true;
                 } else if (tName === "fetch_products" && result) {
                   setChatMessages((prev) =>
                     prev.map((m) =>
@@ -1269,6 +1314,10 @@ export default function EmbedChat({
         sentTextLengthRef.current = fullResponseText.length;
       }
       streamFinishedRef.current = true;
+      // Layer 2 fallback: if AI didn't call end_conversation but response is clearly a farewell
+      if (!consultationEndedRef.current && isFarewellResponse(fullResponseText)) {
+        consultationEndedRef.current = true;
+      }
       // Trigger queue playback loop in case player is waiting
       playNextInQueue();
     } else {
@@ -1278,9 +1327,28 @@ export default function EmbedChat({
 
   // Auto-start recording when voice mode is activated (only if mic was already granted and user hasn't paused)
   useEffect(() => {
+    // Clear any existing idle timeout on every state change
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = null;
+    }
+
     if (isVoiceMode && leadCaptured && voiceState === "idle" && micPermissionGrantedRef.current && !userPausedRef.current && !consultationEndedRef.current) {
-      const timer = setTimeout(() => startRecordingRef.current(), 500);
-      return () => clearTimeout(timer);
+      // Auto-restart mic after a short delay
+      const timer = setTimeout(() => startRecordingRef.current(), 300);
+
+      // Layer 4 safety: If idle persists for 60s without user speaking, end the session
+      idleTimeoutRef.current = setTimeout(() => {
+        handleEndAndResetRef.current();
+      }, 60000);
+
+      return () => {
+        clearTimeout(timer);
+        if (idleTimeoutRef.current) {
+          clearTimeout(idleTimeoutRef.current);
+          idleTimeoutRef.current = null;
+        }
+      };
     }
   }, [isVoiceMode, leadCaptured, voiceState]);
 
@@ -1531,6 +1599,8 @@ export default function EmbedChat({
                     m.id === assistantId ? { ...m, suggestions } : m
                   )
                 );
+              } else if (data.toolName === "end_conversation" && data.result) {
+                consultationEndedRef.current = true;
               } else if (data.toolName === "fetch_products" && data.result) {
                 const products = Array.isArray(data.result) ? data.result : [];
                 setChatMessages((prev) =>
@@ -1578,6 +1648,8 @@ export default function EmbedChat({
                       m.id === assistantId ? { ...m, suggestions } : m
                     )
                   );
+                } else if (toolName === "end_conversation") {
+                  consultationEndedRef.current = true;
                 } else if (toolName === "fetch_products" && output) {
                   const products = Array.isArray(output) ? output : [];
                   setChatMessages((prev) =>
@@ -1600,6 +1672,8 @@ export default function EmbedChat({
                       m.id === assistantId ? { ...m, suggestions: Array.isArray(result) ? result : [] } : m
                     )
                   );
+                } else if (tName === "end_conversation") {
+                  consultationEndedRef.current = true;
                 } else if (tName === "fetch_products" && result) {
                   setChatMessages((prev) =>
                     prev.map((m) =>

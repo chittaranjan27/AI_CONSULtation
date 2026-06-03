@@ -71,12 +71,15 @@ export async function POST(req: NextRequest) {
 
       const data = await response.json();
 
-      // Log STT usage (OpenAI Whisper) — fire-and-forget
-      logSTTUsage(chatbotId, conversationId, "OPENAI", "whisper-1", duration);
-
-      return NextResponse.json({
+      // Prepare response FIRST, then log (truly non-blocking)
+      const jsonResponse = NextResponse.json({
         transcript: data.text || "",
       });
+
+      // Log STT usage (OpenAI Whisper) — fire-and-forget after response is ready
+      logSTTUsage(chatbotId, conversationId, "OPENAI", "whisper-1", duration);
+
+      return jsonResponse;
     }
 
     if (!apiKey) {
@@ -113,12 +116,15 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
 
-    // Log STT usage (Sarvam AI) — fire-and-forget
-    logSTTUsage(chatbotId, conversationId, "SARVAM", "saaras:v3", duration);
-
-    return NextResponse.json({
+    // Prepare response FIRST, then log (truly non-blocking)
+    const jsonResponse = NextResponse.json({
       transcript: data.transcript || data.text || "",
     });
+
+    // Log STT usage (Sarvam AI) — fire-and-forget after response is ready
+    logSTTUsage(chatbotId, conversationId, "SARVAM", "saaras:v3", duration);
+
+    return jsonResponse;
   } catch (error) {
     console.error("Voice transcribe error:", error);
     return NextResponse.json(

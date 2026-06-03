@@ -32,6 +32,32 @@ interface ConsultationStep {
 /** Minimum message length to qualify for RAG retrieval (short option clicks don't need it) */
 const RAG_MIN_MESSAGE_LENGTH = 50;
 
+// ── In-memory chatbot config cache (60s TTL) ──
+// Chatbot config (system prompt, steps, temperature, model) changes rarely.
+// Caching avoids a full DB round-trip on every chat request.
+const chatbotConfigCache = new Map<string, { data: any; timestamp: number }>();
+const CHATBOT_CACHE_TTL = 60_000; // 60 seconds
+
+async function getCachedChatbot(chatbotId: string, tenantId: string) {
+  const key = `${chatbotId}:${tenantId}`;
+  const cached = chatbotConfigCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CHATBOT_CACHE_TTL) {
+    return cached.data;
+  }
+  const chatbot = await prisma.chatbot.findUnique({
+    where: { id: chatbotId, tenantId },
+  });
+  if (chatbot) {
+    chatbotConfigCache.set(key, { data: chatbot, timestamp: Date.now() });
+  }
+  return chatbot;
+}
+
+/** Invalidate chatbot config cache (call when chatbot settings are updated) */
+export function invalidateChatbotConfigCache(chatbotId: string, tenantId: string) {
+  chatbotConfigCache.delete(`${chatbotId}:${tenantId}`);
+}
+
 /**
  * Core chat completion function using Vercel AI SDK streamText().
  * Handles RAG retrieval, streaming, and usage tracking.
@@ -40,19 +66,17 @@ const RAG_MIN_MESSAGE_LENGTH = 50;
  * `consultationSteps` JSON configured per-chatbot in the dashboard.
  * No business-specific logic is hardcoded here.
  *
- * Performance: DB queries are parallelized, RAG is skipped during
- * early intake steps, and onFinish writes are batched.
+ * Performance: DB queries are parallelized with chatbot config caching,
+ * RAG is skipped during early intake steps, and onFinish writes are batched.
  */
 export async function createChatCompletion(config: ChatConfig) {
   const { chatbotId, tenantId, conversationId, messages } = config;
 
   // ── PHASE 1: Parallel DB Lookups ──
-  // Fire all independent queries simultaneously instead of sequentially
-  const [chatbot, conversationMeta, categoriesResult] = await Promise.all([
-    // 1. Load chatbot configuration + its API key in one go
-    prisma.chatbot.findUnique({
-      where: { id: chatbotId, tenantId },
-    }),
+  // Fire ALL independent queries simultaneously — includes API keys to avoid sequential lookups
+  const [chatbot, conversationMeta, categoriesResult, allApiKeys] = await Promise.all([
+    // 1. Load chatbot configuration (cached with 60s TTL)
+    getCachedChatbot(chatbotId, tenantId),
 
     // 2. Fetch current consultation step from conversation metadata
     config.conversationId
@@ -76,6 +100,12 @@ export async function createChatCompletion(config: ChatConfig) {
       select: { category: true },
       distinct: ["category"],
     }).catch(() => [] as { category: string | null }[]),
+
+    // 4. Pre-fetch ALL tenant API keys in one query (eliminates 2 sequential lookups)
+    prisma.tenantApiKey.findMany({
+      where: { tenantId },
+      select: { provider: true, encryptedKey: true },
+    }).catch(() => [] as { provider: string; encryptedKey: string }[]),
   ]);
 
   if (!chatbot) {
@@ -85,15 +115,9 @@ export async function createChatCompletion(config: ChatConfig) {
   const provider = chatbot.aiProvider as AIProviderType;
   const modelId = chatbot.model;
 
-  // Get tenant's API key for this provider (second parallel batch — depends on chatbot)
-  const apiKeyRecord = await prisma.tenantApiKey.findUnique({
-    where: {
-      tenantId_provider: {
-        tenantId,
-        provider: chatbot.aiProvider,
-      },
-    },
-  });
+  // Resolve API keys from pre-fetched array (O(1) in-memory lookup — no DB round-trip)
+  const apiKeyRecord = allApiKeys.find((k: { provider: string }) => k.provider === chatbot.aiProvider);
+  const openaiKeyRecord = allApiKeys.find((k: { provider: string }) => k.provider === "OPENAI");
 
   if (!apiKeyRecord) {
     throw new Error(
@@ -131,26 +155,18 @@ export async function createChatCompletion(config: ChatConfig) {
   const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
 
   // Determine if RAG is needed:
-  // - Skip during early intake steps (1-3) where user is just selecting options
-  // - Skip for very short messages (option clicks like "Yes, please", "Hair Care")
-  // - Always run for later steps or longer free-text messages
+  // Voice mode: skip RAG for ALL short messages (option clicks, confirmations, greetings)
+  // Text mode: original logic (skip only early intake + short)
   const isEarlyIntakeStep = hasSteps && currentStep <= 3;
   const isShortMessage = !lastUserMessage || lastUserMessage.content.length < RAG_MIN_MESSAGE_LENGTH;
-  const needsRAG = !isEarlyIntakeStep || !isShortMessage;
+  const needsRAG = config.mode === "voice"
+    ? (!isShortMessage && !isEarlyIntakeStep)  // Voice: both conditions must pass
+    : (!isEarlyIntakeStep || !isShortMessage);  // Text: original logic
 
   if (needsRAG && lastUserMessage) {
     try {
-      // We need an OpenAI key for embeddings (even if chatbot uses different provider)
-      const openaiKey = await prisma.tenantApiKey.findUnique({
-        where: {
-          tenantId_provider: {
-            tenantId,
-            provider: "OPENAI",
-          },
-        },
-      });
-
-      const embeddingKey = openaiKey?.encryptedKey || apiKey;
+      // Use pre-fetched OpenAI key for embeddings (no extra DB query)
+      const embeddingKey = openaiKeyRecord?.encryptedKey || apiKey;
       const ragContext = await retrieveContext(
         chatbotId,
         lastUserMessage.content,
@@ -179,24 +195,20 @@ export async function createChatCompletion(config: ChatConfig) {
     const stepInputType = matchedStep.inputType || "options";
 
     if (isVoice) {
-      systemPrompt += `\n\n[CONSULTATION FLOW STATE (VOICE MODE)]
-You are guiding the user through a ${totalSteps}-step intake consultation. Here is the full flow outline:
-${stepsOutline}
+      // Voice prompt is intentionally lean — fewer tokens = faster Time-To-First-Token
+      systemPrompt += `\n\n[VOICE CONSULTATION — Step ${matchedStep.stepNumber}/${totalSteps}: "${matchedStep.title}"]
+Instructions: ${matchedStep.prompt}
 
-You are currently on Step ${matchedStep.stepNumber}: "${matchedStep.title}".
-Instructions for this step: ${matchedStep.prompt}
-
-CRITICAL RULES FOR VOICE CONVERSATION:
-1. NATURAL CONVERSATION: Speak in a warm, professional, empathetic, and conversational tone.
-2. NO STRICT STEPS: Do not lock the user into rigid steps. If the user asks a question, goes off-topic, or describes their situation out of order, answer them naturally and thoroughly using your knowledge base and context. Do NOT aggressively redirect them back to a strict step.
-3. ORGANIC INTAKE: Guide them through the intake concerns and recommend products naturally as part of a real conversation.
+RULES:
+1. Speak warmly, concisely (2-3 sentences max). Be natural and conversational.
+2. Don't lock the user into rigid steps — answer off-topic questions naturally.
 ${stepInputType === "text"
-          ? `4. FREE-TEXT INPUT MODE: For this step, the user is expected to type/speak freely. Do NOT call the 'show_options' tool. Ask an open-ended question and wait for their response without presenting selectable buttons.`
-          : `4. DISPLAY OPTIONS (MANDATORY — SILENT): For every response/query in this flow, you MUST call the 'show_options' tool to display interactive buttons on the screen. However, do NOT read out, list, or mention the options in your spoken response text. The options will appear visually on the user's screen for them to tap. Your spoken response should only contain the conversational guidance, question, or context — never enumerate or narrate the choices. If the step does not define explicit options, generate logical options (e.g. yes/no, range values, or common answers) and pass them to the tool silently. IMPORTANT: If the active conversation language is NOT English, you MUST translate every option into the active language before passing them to the tool. The meaning and intent of each option must remain identical — only the language changes.`
+          ? `3. FREE-TEXT: Do NOT call 'show_options'. Ask open-ended questions.`
+          : `3. SILENT OPTIONS: Call 'show_options' for every response but NEVER read out/list options aloud. Translate options to the active language.`
         }
-5. PRODUCT RECOMMENDATIONS (VOICE-OPTIMIZED): When recommending products, ONLY say the product name and ONE brief benefit sentence in your spoken text (e.g. "I recommend the [Product Name] — it's great for daily pH-balanced care."). Do NOT read out prices, ingredient lists, specifications, or detailed descriptions — those are all shown visually on the product card. Call the 'fetch_products' tool to display the product cards on screen. Keep your spoken mention to 1 sentence per product maximum.
-6. RESPONSIVENESS: Keep responses natural, concise, and conversational (2-3 sentences max per turn). ABSOLUTELY DO NOT list, enumerate, read out, or narrate the options in your text response. Do NOT write numbered lists, bullet points, dashes, or any form of option listing. The 'show_options' tool handles all option display visually. Your text must ONLY contain the conversational question or guidance — nothing else. Example of WRONG: "You can choose from: 1) Hair fall 2) Dandruff 3) Thinning". Example of CORRECT: "What concern would you like to address today?"
-7. STEP ADVANCEMENT: When you believe the current step's objective has been fulfilled and the user has provided the required input, call the 'update_consultation_step' tool with the next step number to advance the flow.`;
+4. Products: Say only the name + 1 benefit sentence. Call 'fetch_products' — details show on cards.
+5. NEVER write numbered lists, bullet points, or enumerate choices in text.
+6. Call 'update_consultation_step' when the step objective is fulfilled.`;
     } else {
       systemPrompt += `\n\n[CONSULTATION FLOW STATE]
 You are guiding the user through a ${totalSteps}-step intake consultation. Here is the full flow outline:
@@ -240,7 +252,7 @@ No structured intake steps are configured for this chatbot. Operate as a helpful
 
   if (chatbot.supportedLanguages && chatbot.supportedLanguages.length > 0) {
     const langNames = chatbot.supportedLanguages
-      .map((code) => langCodeToName[code] || code.toUpperCase())
+      .map((code: string) => langCodeToName[code] || code.toUpperCase())
       .join(", ");
 
     systemPrompt += `\n\n[MULTI-LANGUAGE POLICY]
@@ -264,8 +276,17 @@ You MUST generate ALL output in ${langName}, including:
 - Product recommendation descriptions and action prompts
 Do NOT leave option buttons in English when the conversation language is ${langName}. The entire consultation experience must feel native in the user's selected language.`;
 
-  // ── Final Reinforcement Block ──
-  if (hasSteps && matchedStep) {
+  // ── Conversation End Signal (applies to ALL chatbot types) ──
+  systemPrompt += `\n\n[CONVERSATION END SIGNAL]
+When the conversation is naturally concluding — the user says goodbye, thanks you and wants to leave, expresses they have no more questions, or you have delivered your final farewell/wrap-up response — you MUST call the 'end_conversation' tool.
+This is critical for voice mode: it ensures the microphone stops listening cleanly.
+Call it alongside your farewell text response. Examples of when to call it:
+- User says "bye", "goodbye", "thank you, that's all", "I'm done", or equivalent in any language
+- You have completed a farewell response and there are no more follow-up questions
+- The consultation flow has reached its natural conclusion`;
+
+  // ── Final Reinforcement Block (skip in voice mode — prompt is already lean) ──
+  if (hasSteps && matchedStep && !isVoice) {
     const stepInputType = matchedStep.inputType || "options";
     if (stepInputType === "options") {
       const hasConfiguredOpts = matchedStep.options && matchedStep.options.length > 0;
@@ -359,6 +380,17 @@ Do NOT call the 'show_options' tool. Ask a warm, professional question and let t
             console.error("Error fetching local products in tool:", error);
             return [];
           }
+        },
+      }),
+      // Conversation end signal tool — the LLM calls this when the conversation is concluding
+      end_conversation: tool({
+        description: "Signal that the conversation has naturally concluded. Call this when the user says goodbye, thanks you and leaves, expresses they are done, or when you have completed your final farewell response. This stops the voice session cleanly.",
+        inputSchema: z.object({
+          reason: z.enum(["user_farewell", "consultation_complete", "no_further_questions"])
+            .describe("Why the conversation is ending")
+        }),
+        execute: async ({ reason }) => {
+          return { ended: true, reason };
         },
       }),
       // Dynamic step transition tool — the LLM calls this to advance the consultation flow

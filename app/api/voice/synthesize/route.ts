@@ -55,13 +55,16 @@ export async function POST(req: NextRequest) {
       const arrayBuffer = await response.arrayBuffer();
       const base64Audio = Buffer.from(arrayBuffer).toString("base64");
 
-      // Log TTS usage (OpenAI) — fire-and-forget
-      logTTSUsage(chatbotId, conversationId, "OPENAI", "tts-1", characterCount);
-
-      return NextResponse.json({
+      // Prepare response FIRST, then log (truly non-blocking)
+      const jsonResponse = NextResponse.json({
         audio: base64Audio,
         format: "mp3",
       });
+
+      // Log TTS usage (OpenAI) — fire-and-forget after response is ready
+      logTTSUsage(chatbotId, conversationId, "OPENAI", "tts-1", characterCount);
+
+      return jsonResponse;
     }
 
     // Fallback to Sarvam for English/Hindi or any other supported Indic languages
@@ -107,12 +110,15 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
 
-    // Log TTS usage (Sarvam AI) — fire-and-forget
-    logTTSUsage(chatbotId, conversationId, "SARVAM", "bulbul:v3", characterCount);
-
-    return NextResponse.json({
+    // Prepare response FIRST, then log (truly non-blocking)
+    const jsonResponse = NextResponse.json({
       audio: data.audios?.[0] || data.audio || "",
     });
+
+    // Log TTS usage (Sarvam AI) — fire-and-forget after response is ready
+    logTTSUsage(chatbotId, conversationId, "SARVAM", "bulbul:v3", characterCount);
+
+    return jsonResponse;
   } catch (error) {
     console.error("Voice synthesize error:", error);
     return NextResponse.json(
