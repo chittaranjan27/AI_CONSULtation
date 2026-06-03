@@ -1376,7 +1376,10 @@ export default function EmbedChat({
     if (isVoiceMode) {
       // Small timeout to ensure DOM has updated
       const timer = setTimeout(() => {
-        voiceTranscriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        const el = voiceTranscriptEndRef.current;
+        if (el?.parentElement) {
+          el.parentElement.scrollTop = el.parentElement.scrollHeight;
+        }
       }, 50);
       return () => clearTimeout(timer);
     }
@@ -1417,7 +1420,8 @@ export default function EmbedChat({
     const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
 
     if (atBottom || isNewMessage) {
-      messagesEndRef.current?.scrollIntoView({
+      container.scrollTo({
+        top: container.scrollHeight,
         behavior: isNewMessage ? "smooth" : "auto",
       });
     }
@@ -1432,7 +1436,10 @@ export default function EmbedChat({
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
   };
 
   const handleClose = () => {
