@@ -82,8 +82,8 @@ export default async function LeadsPage() {
   const formattedLeads = dbLeads.map((lead) => ({
     id: lead.id,
     name: lead.name || "Unknown Lead",
-    email: lead.email || "",
     phone: lead.phone || "",
+    location: (lead.metadata as { location?: string })?.location || "",
     score: lead.score,
     status: lead.status,
     source: lead.source || "Manual",

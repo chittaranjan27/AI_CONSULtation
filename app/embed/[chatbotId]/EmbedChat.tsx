@@ -833,7 +833,7 @@ export default function EmbedChat({
       if (!audio) throw new Error("Empty audio returned");
 
       const mimeType = format === "mp3" ? "audio/mpeg" : "audio/wav";
-      
+
       // Use Blob URL instead of base64 data URL to save memory
       const binaryString = atob(audio);
       const bytes = new Uint8Array(binaryString.length);
@@ -842,12 +842,12 @@ export default function EmbedChat({
       }
       const blob = new Blob([bytes], { type: mimeType });
       const blobUrl = URL.createObjectURL(blob);
-      
+
       const audioEl = new Audio(blobUrl);
       // Clean up blob URL when done playing to free memory
       audioEl.addEventListener("ended", () => URL.revokeObjectURL(blobUrl), { once: true });
       audioEl.addEventListener("error", () => URL.revokeObjectURL(blobUrl), { once: true });
-      
+
       audioMapRef.current[index] = audioEl;
 
       // Try playing the next item in case the player was idle
@@ -1445,11 +1445,11 @@ export default function EmbedChat({
 
     triggerInlineMaximize();
     setIsCapturing(true);
-    
+
     let location = "Unknown";
     try {
       location = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    } catch (err) {}
+    } catch (err) { }
 
     try {
       await fetch("/api/leads", {
@@ -2357,11 +2357,25 @@ export default function EmbedChat({
                       className="text-[10.5px] font-medium"
                       style={{ color: "var(--text-muted)" }}
                     >
-                      {voiceState === "idle" && "Tap the microphone to begin"}
                       {voiceState === "recording" && "Speak naturally now..."}
                       {voiceState === "thinking" && "Consulting AI knowledge..."}
                       {voiceState === "speaking" && `${botName} is responding`}
                     </p>
+                    {voiceState === "idle" && (
+                      <div className="flex flex-col items-center gap-2 mt-1">
+                        <p
+                          className="text-lg font-semibold tracking-wide"
+                          style={{
+                            background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}99)`,
+                            WebkitBackgroundClip: "text",
+                            WebkitTextFillColor: "transparent",
+                            animation: "subtlePulse 2.5s ease-in-out infinite",
+                          }}
+                        >
+                          👇 Tap the microphone to begin
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Big Mic Button */}
@@ -2773,8 +2787,20 @@ export default function EmbedChat({
                               {voiceState === "recording" && (userTranscript || "Listening...")}
                               {voiceState === "speaking" && (botSpeechText || `${botName} is speaking...`)}
                               {voiceState === "thinking" && "AI is thinking..."}
-                              {voiceState === "idle" && "Tap microphone to talk"}
                             </p>
+                            {voiceState === "idle" && (
+                              <p
+                                className="text-lg font-semibold tracking-wide select-none"
+                                style={{
+                                  background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}99)`,
+                                  WebkitBackgroundClip: "text",
+                                  WebkitTextFillColor: "transparent",
+                                  animation: "subtlePulse 2.5s ease-in-out infinite",
+                                }}
+                              >
+                                👇 Tap microphone to talk
+                              </p>
+                            )}
                           </div>
 
                         </div>
@@ -3371,6 +3397,10 @@ export default function EmbedChat({
         @keyframes glowPulse {
           0%, 100% { opacity: 0.45; }
           50% { opacity: 0.85; }
+        }
+        @keyframes subtlePulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.03); }
         }
         .voice-transcript-container {
           max-height: none;

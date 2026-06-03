@@ -13,13 +13,14 @@ import {
   Loader2,
   Trash2,
   Users,
+  MapPin,
 } from "lucide-react";
 
 interface LeadProp {
   id: string;
   name: string;
-  email: string;
   phone: string;
+  location?: string;
   score: number;
   status: string;
   source: string;
@@ -62,7 +63,7 @@ export default function LeadsList({ initialLeads, chatbots, stats }: LeadsListPr
 
   // Form State
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [location, setLocation] = useState("");
   const [phone, setPhone] = useState("");
   const [status, setStatus] = useState("NEW");
   const [score, setScore] = useState("70");
@@ -73,8 +74,8 @@ export default function LeadsList({ initialLeads, chatbots, stats }: LeadsListPr
   const filteredLeads = initialLeads.filter((lead) => {
     const matchesSearch =
       (lead.name && lead.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (lead.email && lead.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (lead.phone && lead.phone.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (lead.location && lead.location.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (lead.source && lead.source.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesStatus = statusFilter === "all" || lead.status.toLowerCase() === statusFilter;
@@ -83,11 +84,11 @@ export default function LeadsList({ initialLeads, chatbots, stats }: LeadsListPr
   });
 
   const handleExport = () => {
-    const headers = ["Name", "Email", "Phone", "Score", "Status", "Source", "Created"];
+    const headers = ["Name", "Phone", "Location", "Score", "Status", "Source", "Created"];
     const rows = filteredLeads.map((l) => [
       `"${l.name.replace(/"/g, '""')}"`,
-      `"${l.email.replace(/"/g, '""')}"`,
       `"${l.phone}"`,
+      `"${l.location ? l.location.replace(/"/g, '""') : ""}"`,
       l.score,
       l.status,
       `"${l.source.replace(/"/g, '""')}"`,
@@ -107,7 +108,7 @@ export default function LeadsList({ initialLeads, chatbots, stats }: LeadsListPr
 
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email) return;
+    if (!name || !location) return;
 
     setIsSubmitting(true);
     try {
@@ -119,7 +120,7 @@ export default function LeadsList({ initialLeads, chatbots, stats }: LeadsListPr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          email,
+          location,
           phone,
           status,
           score,
@@ -131,7 +132,7 @@ export default function LeadsList({ initialLeads, chatbots, stats }: LeadsListPr
       if (res.ok) {
         setIsModalOpen(false);
         setName("");
-        setEmail("");
+        setLocation("");
         setPhone("");
         setStatus("NEW");
         setScore("70");
@@ -284,14 +285,14 @@ export default function LeadsList({ initialLeads, chatbots, stats }: LeadsListPr
                     </td>
                     <td className="px-5 py-4">
                       <div className="space-y-0.5">
-                        {lead.email && (
-                          <div className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
-                            <Mail className="w-3 h-3 shrink-0" /> {lead.email}
-                          </div>
-                        )}
                         {lead.phone && (
                           <div className="flex items-center gap-1 text-xs text-[var(--text-tertiary)]">
                             <Phone className="w-3 h-3 shrink-0" /> {lead.phone}
+                          </div>
+                        )}
+                        {lead.location && (
+                          <div className="flex items-center gap-1 text-xs text-[var(--text-tertiary)] mt-1">
+                            <MapPin className="w-3 h-3 shrink-0" /> {lead.location}
                           </div>
                         )}
                       </div>
@@ -394,14 +395,14 @@ export default function LeadsList({ initialLeads, chatbots, stats }: LeadsListPr
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-[var(--text-secondary)]">
-                  Email <span className="text-red-500">*</span>
+                  Location <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="e.g. jane@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. Dubai, UAE"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)] focus:border-purple-500 outline-none text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
                 />
               </div>
@@ -491,7 +492,7 @@ export default function LeadsList({ initialLeads, chatbots, stats }: LeadsListPr
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !name || !email}
+                  disabled={isSubmitting || !name || !location}
                   className="btn-primary text-sm py-2 px-5 flex items-center gap-2"
                 >
                   {isSubmitting ? (

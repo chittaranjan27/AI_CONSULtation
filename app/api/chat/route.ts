@@ -17,21 +17,21 @@ function extractText(message: { role: string; content?: string; parts?: Array<{ 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { chatbotId, messages, conversationId, visitorId, visitorName, visitorEmail, mode, language } = body;
+    const { chatbotId, messages, conversationId, visitorId, visitorName, visitorLocation, mode, language } = body;
 
     if (!chatbotId || !messages || !Array.isArray(messages)) {
       return new Response("Missing chatbotId or messages", { status: 400 });
     }
 
     // ── Parallel: Verify chatbot + create visitor simultaneously ──
-    const needsVisitor = !visitorId && (visitorName || visitorEmail);
+    const needsVisitor = !visitorId && (visitorName || visitorLocation);
     const [chatbot, visitor] = await Promise.all([
       getChatbotTenant(chatbotId),
       needsVisitor
         ? prisma.visitor.create({
           data: {
             name: visitorName || null,
-            email: visitorEmail || null,
+            metadata: visitorLocation ? { location: visitorLocation } : undefined,
           },
         })
         : Promise.resolve(null),

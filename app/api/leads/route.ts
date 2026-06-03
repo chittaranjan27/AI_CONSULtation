@@ -7,7 +7,7 @@ import { LeadStatus } from "@prisma/client";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, email, phone, status, score, source, chatbotId } = body;
+    const { name, phone, location, status, score, source, chatbotId } = body;
 
     let tenantId: string;
 
@@ -22,9 +22,9 @@ export async function POST(req: Request) {
       }
       tenantId = chatbot.tenantId;
 
-      // Validate required fields for widget submissions (email and phone are required)
-      if (!email || !phone) {
-        return new NextResponse("Missing required fields (email, phone)", { status: 400 });
+      // Validate required fields for widget submissions (name and location are required)
+      if (!name || !location) {
+        return new NextResponse("Missing required fields (name, location)", { status: 400 });
       }
     } else {
       // Authenticated dashboard submission
@@ -34,9 +34,9 @@ export async function POST(req: Request) {
       }
       tenantId = session.user.tenantId;
 
-      // Validate required fields for manual dashboard entry (name and email are required)
-      if (!name || !email) {
-        return new NextResponse("Missing required fields (name, email)", { status: 400 });
+      // Validate required fields for manual dashboard entry (name and location are required)
+      if (!name || !location) {
+        return new NextResponse("Missing required fields (name, location)", { status: 400 });
       }
     }
 
@@ -50,12 +50,13 @@ export async function POST(req: Request) {
       data: {
         tenantId,
         name: name || "Widget Visitor",
-        email,
+        email: null,
         phone: phone || "",
         status: leadStatus,
         score: score ? parseInt(score) : 70,
         source: source || "Manual",
         chatbotId: chatbotId || null,
+        metadata: location ? { location } : undefined,
       },
     });
 
