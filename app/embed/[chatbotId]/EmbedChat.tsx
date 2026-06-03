@@ -83,7 +83,7 @@ export default function EmbedChat({
 }: EmbedChatProps) {
   const [leadCaptured, setLeadCaptured] = useState(!leadCaptureEnabled);
   const [visitorName, setVisitorName] = useState("");
-  const [visitorEmail, setVisitorEmail] = useState("");
+  const [visitorLocation, setVisitorLocation] = useState("");
   const [visitorPhone, setVisitorPhone] = useState("");
   const [isCapturing, setIsCapturing] = useState(false);
   const [input, setInput] = useState("");
@@ -151,8 +151,8 @@ export default function EmbedChat({
   isMutedRef.current = isMuted;
   const visitorNameRef = useRef(visitorName);
   visitorNameRef.current = visitorName;
-  const visitorEmailRef = useRef(visitorEmail);
-  visitorEmailRef.current = visitorEmail;
+  const visitorLocationRef = useRef(visitorLocation);
+  visitorLocationRef.current = visitorLocation;
   const userTranscriptRefUpdated = useRef(userTranscript);
   userTranscriptRefUpdated.current = userTranscript;
   // Update the SpeechRecognition helper ref too
@@ -1134,7 +1134,7 @@ export default function EmbedChat({
         body: JSON.stringify({
           chatbotId,
           visitorName: visitorNameRef.current,
-          visitorEmail: visitorEmailRef.current,
+          visitorLocation: visitorLocationRef.current,
           conversationId: conversationIdRef.current,
           messages: apiMessages,
           mode: "voice",
@@ -1441,18 +1441,24 @@ export default function EmbedChat({
 
   const handleLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!visitorEmail || !visitorPhone) return;
+    if (!visitorName || !visitorLocation) return;
 
     triggerInlineMaximize();
     setIsCapturing(true);
+    
+    let location = "Unknown";
+    try {
+      location = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (err) {}
+
     try {
       await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: visitorName || "Widget Visitor",
-          email: visitorEmail,
+          name: visitorName,
           phone: visitorPhone,
+          location: visitorLocation || location,
           source: `Widget: ${botName}`,
           chatbotId,
         }),
@@ -1526,7 +1532,7 @@ export default function EmbedChat({
         body: JSON.stringify({
           chatbotId,
           visitorName,
-          visitorEmail,
+          visitorLocation,
           conversationId,
           messages: apiMessages,
           mode: "text",
@@ -1980,10 +1986,11 @@ export default function EmbedChat({
                   className="text-[11px] font-semibold mb-1.5 block"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  Your Name
+                  Name <span style={{ color: "#ef4444" }}>*</span>
                 </label>
                 <input
                   type="text"
+                  required
                   placeholder="Jane Smith"
                   value={visitorName}
                   onChange={(e) => setVisitorName(e.target.value)}
@@ -2009,14 +2016,14 @@ export default function EmbedChat({
                   className="text-[11px] font-semibold mb-1.5 block"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  Email Address <span style={{ color: "#ef4444" }}>*</span>
+                  Location <span style={{ color: "#ef4444" }}>*</span>
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="jane@company.com"
-                  value={visitorEmail}
-                  onChange={(e) => setVisitorEmail(e.target.value)}
+                  placeholder="City, Country"
+                  value={visitorLocation}
+                  onChange={(e) => setVisitorLocation(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all"
                   style={{
                     background: "var(--bg-secondary)",
@@ -2039,12 +2046,11 @@ export default function EmbedChat({
                   className="text-[11px] font-semibold mb-1.5 block"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  Phone Number <span style={{ color: "#ef4444" }}>*</span>
+                  Phone Number
                 </label>
                 <input
                   type="tel"
-                  required
-                  placeholder="+1 (555) 000-0000"
+                  placeholder="+971 *** *** ****"
                   value={visitorPhone}
                   onChange={(e) => setVisitorPhone(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all"
@@ -2066,7 +2072,7 @@ export default function EmbedChat({
               </div>
               <button
                 type="submit"
-                disabled={isCapturing || !visitorEmail || !visitorPhone}
+                disabled={isCapturing || !visitorName || !visitorLocation}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 style={{
                   background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
