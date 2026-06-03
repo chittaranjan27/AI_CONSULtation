@@ -182,12 +182,7 @@ export default function EmbedChat({
   // Track widget_open on mount
   useEffect(() => {
     trackEvent("widget_open");
-
-    // Auto-maximize inline widget on mobile devices by default
-    if (mode === "inline" && window.innerWidth < 640) {
-      triggerInlineMaximize();
-    }
-  }, [trackEvent, mode, triggerInlineMaximize]);
+  }, [trackEvent]);
 
   const detectAndSyncLanguage = useCallback((text: string) => {
     if (!text) return;
