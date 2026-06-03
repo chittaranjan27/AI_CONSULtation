@@ -2048,25 +2048,12 @@ export default function EmbedChat({
                 >
                   Phone Number
                 </label>
-                <div className="relative mt-0.5">
-                  <div 
-                    className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    <span className="text-sm leading-none mt-0.5">🇦🇪</span>
-                    <span 
-                      className="text-sm font-medium border-r pr-2 leading-none" 
-                      style={{ borderColor: "var(--border-primary)" }}
-                    >
-                      +971
-                    </span>
-                  </div>
-                  <input
-                    type="tel"
-                    placeholder="50 123 4567"
-                    value={visitorPhone}
-                    onChange={(e) => setVisitorPhone(e.target.value)}
-                    className="w-full pl-[86px] pr-3 py-2.5 rounded-xl text-sm outline-none transition-all"
+                <input
+                  type="tel"
+                  placeholder="+971 *** *** ****"
+                  value={visitorPhone}
+                  onChange={(e) => setVisitorPhone(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all"
                   style={{
                     background: "var(--bg-secondary)",
                     border: "1.5px solid var(--border-primary)",
@@ -2082,7 +2069,6 @@ export default function EmbedChat({
                     (e.currentTarget as HTMLInputElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
                   }}
                 />
-                </div>
               </div>
               <button
                 type="submit"
