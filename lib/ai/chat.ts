@@ -206,7 +206,7 @@ ${stepInputType === "text"
           ? `3. FREE-TEXT: Do NOT call 'show_options'. Ask open-ended questions.`
           : `3. SILENT OPTIONS: Call 'show_options' for every response but NEVER read out/list options aloud. Translate options to the active language.`
         }
-4. Products: Say only the name + 1 benefit sentence. Call 'fetch_products' — details show on cards.
+4. Products: Call 'fetch_products' silently. Say ONLY a brief 1-sentence intro like "Here are some recommendations". NEVER write product names, descriptions, benefits, prices, website links, markdown links like [text](url), or checkout URLs in your text. The UI product cards handle everything.
 5. NEVER write numbered lists, bullet points, or enumerate choices in text.
 6. Call 'update_consultation_step' when the step objective is fulfilled.`;
     } else {
@@ -225,7 +225,7 @@ ${stepInputType === "text"
           ? `4. FREE-TEXT INPUT MODE: For this step, the user is expected to type/speak freely. Do NOT call the 'show_options' tool. Ask an open-ended question and wait for their response without presenting selectable buttons.`
           : `4. MANDATORY TOOL USAGE: You MUST call the 'show_options' tool for every single response/question you send during the intake flow. If the current step instructions do not specify options, generate logical, context-aware options (e.g., yes/no, numeric ranges, or typical answers) so the user can complete the entire consultation by clicking option buttons. NEVER write options as numbered lists, bullet points, or inline text. IMPORTANT: If the active conversation language is NOT English, you MUST translate every option into the active language before passing them to the tool. Keep the meaning identical — only the language changes.`
         }
-5. When showing product recommendations, you MUST call the 'fetch_products' tool with the correct category based on their concern. All prices and transactions must be discussed and represented in Dirham (د.إ) only (e.g. '150 د.إ'). Never use the dollar ($) symbol or mention USD.
+5. When showing product recommendations, you MUST call the 'fetch_products' tool with the correct category based on their concern. CRITICAL: After calling fetch_products, your text response must be ONLY a brief intro (e.g. "Here are some products that might help:"). Do NOT write product names, descriptions, benefits, prices, costs, website links, markdown links like [text](url), or checkout URLs in your text response. The UI will automatically render product cards with all details. NEVER include any link or URL in any of your responses.
 ${stepInputType === "text"
           ? `6. Keep your text responses concise and professional (2-4 sentences max).`
           : `6. Keep your text responses SHORT (2-3 sentences max). Let the interactive buttons do the work. Do NOT repeat the options in your text that you pass to the tool.`
@@ -237,7 +237,7 @@ ${stepInputType === "text"
     systemPrompt += `\n\n[CONVERSATION MODE]
 No structured intake steps are configured for this chatbot. Operate as a helpful, professional AI assistant.
 - Answer user questions using your knowledge base and context.
-- When recommending products, call the 'fetch_products' tool with the relevant category. All prices and transactions must be discussed and represented in Dirham (د.إ) only (e.g. '150 د.إ'). Never use the dollar ($) symbol or mention USD.
+- When recommending products, call the 'fetch_products' tool with the relevant category. Your text response must be ONLY a brief intro (e.g. "Here are some recommendations:"). Do NOT write product names, descriptions, benefits, prices, costs, website links, markdown links like [text](url), or checkout URLs in your text. The UI product cards handle all product details. NEVER include any link or URL in any of your responses.
 - When presenting choices, call the 'show_options' tool to display interactive buttons.
 - Keep responses concise and helpful.`;
   }
