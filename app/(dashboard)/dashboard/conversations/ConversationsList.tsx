@@ -23,6 +23,8 @@ interface Message {
   outputTokens: number;
   totalTokens: number;
   cost: number;
+  provider: string | null;
+  model: string | null;
   metadata: unknown;
   createdAt: string;
 }
@@ -57,6 +59,11 @@ interface Conversation {
   messages: Message[];
   usageRecords?: {
     requestType: string;
+    provider: string;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
     cost: number;
     audioDuration?: number;
     characterCount?: number;
@@ -651,89 +658,137 @@ export default function ConversationsList({
                     </div>
                   )}
 
-                  {/* Token & cost diagnostics */}
+                  {/* ── Usage & Cost Breakdown ── */}
                   <div className="space-y-1.5">
                     <h5 className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">
-                      Model Usage Diagnostics
+                      Usage & Cost Breakdown
                     </h5>
-                    <div className="p-3 rounded-xl bg-[var(--bg-tertiary)]/50 border border-[var(--border-primary)] space-y-2 text-xs text-[var(--text-secondary)]">
-                      <div className="flex justify-between items-center text-[10px] text-[var(--text-muted)]">
-                        <span>Total Tokens</span>
-                        <span>Prompt / Completion</span>
-                      </div>
-                      <div className="flex justify-between items-center font-bold">
-                        <span>
-                          {activeConversation.messages
-                            .reduce((sum, m) => sum + m.totalTokens, 0)
-                            .toLocaleString()}
-                        </span>
-                        <span>
-                          {activeConversation.messages
-                            .reduce((sum, m) => sum + m.inputTokens, 0)
-                            .toLocaleString()}{" "}
-                          /{" "}
-                          {activeConversation.messages
-                            .reduce((sum, m) => sum + m.outputTokens, 0)
-                            .toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
+                    {(() => {
+                      // ── Aggregate metrics from messages + usageRecords ──
+                      const records = activeConversation.usageRecords || [];
+                      const sttRecords = records.filter((r) => r.requestType === "STT");
+                      const ttsRecords = records.filter((r) => r.requestType === "TTS");
+                      const llmRecords = records.filter((r) => r.requestType === "LLM");
+
+                      // LLM metrics — prefer usageRecords if available, fallback to messages
+                      const llmInputTokens = llmRecords.length > 0
+                        ? llmRecords.reduce((s, r) => s + (r.inputTokens || 0), 0)
+                        : activeConversation.messages.reduce((s, m) => s + m.inputTokens, 0);
+                      const llmOutputTokens = llmRecords.length > 0
+                        ? llmRecords.reduce((s, r) => s + (r.outputTokens || 0), 0)
+                        : activeConversation.messages.reduce((s, m) => s + m.outputTokens, 0);
+                      const llmTotalTokens = llmRecords.length > 0
+                        ? llmRecords.reduce((s, r) => s + (r.totalTokens || 0), 0)
+                        : activeConversation.messages.reduce((s, m) => s + m.totalTokens, 0);
+                      const llmCost = llmRecords.length > 0
+                        ? llmRecords.reduce((s, r) => s + (Number(r.cost) || 0), 0)
+                        : activeConversation.messages.reduce((s, m) => s + (Number(m.cost) || 0), 0);
+                      const llmModel = llmRecords.length > 0
+                        ? [...new Set(llmRecords.map((r) => r.model))].join(", ")
+                        : [...new Set(activeConversation.messages.filter((m) => m.model).map((m) => m.model!))].join(", ") || "—";
+                      const llmProvider = llmRecords.length > 0
+                        ? [...new Set(llmRecords.map((r) => r.provider))].join(", ")
+                        : [...new Set(activeConversation.messages.filter((m) => m.provider).map((m) => m.provider!))].join(", ") || "—";
+
+                      // STT metrics
+                      const sttDuration = sttRecords.reduce((s, r) => s + (r.audioDuration || 0), 0);
+                      const sttCost = sttRecords.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+                      const sttModel = [...new Set(sttRecords.map((r) => r.model))].join(", ") || "—";
+                      const sttProvider = [...new Set(sttRecords.map((r) => r.provider))].join(", ") || "—";
+
+                      // TTS metrics
+                      const ttsChars = ttsRecords.reduce((s, r) => s + (r.characterCount || 0), 0);
+                      const ttsCost = ttsRecords.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+                      const ttsModel = [...new Set(ttsRecords.map((r) => r.model))].join(", ") || "—";
+                      const ttsProvider = [...new Set(ttsRecords.map((r) => r.provider))].join(", ") || "—";
+
+                      const totalCost = llmCost + sttCost + ttsCost;
+                      const duration = getConversationDuration(activeConversation);
+
+                      const hasVoice = sttRecords.length > 0 || ttsRecords.length > 0;
+
+                      return (
+                        <div className="p-3 rounded-xl bg-[var(--bg-tertiary)]/50 border border-[var(--border-primary)] space-y-3">
+                          {/* ── Top Metrics Grid ── */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/60 border border-[var(--border-primary)]/50 text-center">
+                              <span className="text-[8px] text-[var(--text-muted)] uppercase tracking-wider block">Total Cost</span>
+                              <span className="text-sm font-bold text-[var(--brand-emerald)] font-mono block mt-0.5">${totalCost.toFixed(4)}</span>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/60 border border-[var(--border-primary)]/50 text-center">
+                              <span className="text-[8px] text-[var(--text-muted)] uppercase tracking-wider block">Total Tokens</span>
+                              <span className="text-sm font-bold text-[var(--brand-purple)] font-mono block mt-0.5">{llmTotalTokens.toLocaleString()}</span>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-[var(--bg-secondary)]/60 border border-[var(--border-primary)]/50 text-center">
+                              <span className="text-[8px] text-[var(--text-muted)] uppercase tracking-wider block">Duration</span>
+                              <span className="text-sm font-bold text-[var(--brand-cyan)] block mt-0.5">{duration}</span>
+                            </div>
+                          </div>
+
+                          {/* ── Service Breakdown Table ── */}
+                          <div className="border-t border-[var(--border-primary)]/40 pt-2.5 space-y-0">
+                            <div className="grid grid-cols-4 gap-2 text-[8px] text-[var(--text-muted)] uppercase tracking-wider pb-1.5 border-b border-[var(--border-primary)]/30 font-bold">
+                              <span>Service</span>
+                              <span>Model / Provider</span>
+                              <span>Usage</span>
+                              <span className="text-right">Cost</span>
+                            </div>
+
+                            {/* LLM Row */}
+                            <div className="grid grid-cols-4 gap-2 py-2 items-center text-[10px] border-b border-[var(--border-primary)]/20">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[var(--brand-purple)] shrink-0" />
+                                <span className="font-semibold text-[var(--text-primary)]">LLM</span>
+                              </div>
+                              <div className="text-[var(--text-tertiary)] truncate" title={`${llmProvider} (${llmModel})`}>
+                                <span className="font-medium text-[var(--text-secondary)]">{llmProvider}</span>
+                                <span className="text-[8px] block truncate">{llmModel}</span>
+                              </div>
+                              <div className="text-[var(--text-secondary)]">
+                                <span className="font-medium">{llmTotalTokens.toLocaleString()}</span>
+                                <span className="text-[8px] text-[var(--text-muted)] block">{llmInputTokens.toLocaleString()} in / {llmOutputTokens.toLocaleString()} out</span>
+                              </div>
+                              <span className="text-right font-bold text-[var(--text-primary)] font-mono">${llmCost.toFixed(4)}</span>
+                            </div>
+
+                            {/* STT Row */}
+                            <div className={`grid grid-cols-4 gap-2 py-2 items-center text-[10px] border-b border-[var(--border-primary)]/20 ${!hasVoice ? 'opacity-40' : ''}`}>
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[var(--brand-blue)] shrink-0" />
+                                <span className="font-semibold text-[var(--text-primary)]">STT</span>
+                              </div>
+                              <div className="text-[var(--text-tertiary)] truncate" title={`${sttProvider} (${sttModel})`}>
+                                <span className="font-medium text-[var(--text-secondary)]">{hasVoice ? sttProvider : '—'}</span>
+                                <span className="text-[8px] block truncate">{hasVoice ? sttModel : ''}</span>
+                              </div>
+                              <div className="text-[var(--text-secondary)]">
+                                <span className="font-medium">{hasVoice ? `${Math.round(sttDuration)}s` : '—'}</span>
+                                <span className="text-[8px] text-[var(--text-muted)] block">{sttRecords.length} requests</span>
+                              </div>
+                              <span className="text-right font-bold text-[var(--text-primary)] font-mono">${sttCost.toFixed(4)}</span>
+                            </div>
+
+                            {/* TTS Row */}
+                            <div className={`grid grid-cols-4 gap-2 py-2 items-center text-[10px] ${!hasVoice ? 'opacity-40' : ''}`}>
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[var(--brand-cyan)] shrink-0" />
+                                <span className="font-semibold text-[var(--text-primary)]">TTS</span>
+                              </div>
+                              <div className="text-[var(--text-tertiary)] truncate" title={`${ttsProvider} (${ttsModel})`}>
+                                <span className="font-medium text-[var(--text-secondary)]">{hasVoice ? ttsProvider : '—'}</span>
+                                <span className="text-[8px] block truncate">{hasVoice ? ttsModel : ''}</span>
+                              </div>
+                              <div className="text-[var(--text-secondary)]">
+                                <span className="font-medium">{hasVoice ? ttsChars.toLocaleString() + ' chars' : '—'}</span>
+                                <span className="text-[8px] text-[var(--text-muted)] block">{ttsRecords.length} requests</span>
+                              </div>
+                              <span className="text-right font-bold text-[var(--text-primary)] font-mono">${ttsCost.toFixed(4)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-
-                  {/* Voice Assistant Metrics */}
-                  {activeConversation.usageRecords && activeConversation.usageRecords.length > 0 && (
-                    <div className="space-y-1.5 animate-fade-in-up">
-                      <h5 className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider">
-                        Voice Assistant Metrics
-                      </h5>
-                      <div className="p-3 rounded-xl bg-[var(--bg-tertiary)]/50 border border-[var(--border-primary)] space-y-3 text-xs text-[var(--text-secondary)]">
-                        {(() => {
-                          const sttRecords = activeConversation.usageRecords?.filter((r) => r.requestType === "STT") || [];
-                          const ttsRecords = activeConversation.usageRecords?.filter((r) => r.requestType === "TTS") || [];
-
-                          const sttRequests = sttRecords.length;
-                          const sttDuration = sttRecords.reduce((sum, r) => sum + (r.audioDuration || 0), 0);
-                          const ttsRequests = ttsRecords.length;
-                          const ttsCharacters = ttsRecords.reduce((sum, r) => sum + (r.characterCount || 0), 0);
-                          const voiceCost = activeConversation.usageRecords?.reduce((sum, r) => sum + (r.cost || 0), 0) || 0;
-                          const llmCost = activeConversation.messages.reduce((sum, m) => sum + (Number(m.cost) || 0), 0);
-
-                          return (
-                            <>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <span className="text-[9px] text-[var(--text-muted)] block">STT Requests & Duration</span>
-                                  <span className="font-semibold text-[var(--text-primary)]">
-                                    {sttRequests} reqs · {Math.round(sttDuration)}s
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-[9px] text-[var(--text-muted)] block">TTS Requests & Chars</span>
-                                  <span className="font-semibold text-[var(--text-primary)]">
-                                    {ttsRequests} reqs · {ttsCharacters.toLocaleString()}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="pt-2 border-t border-[var(--border-primary)]/40 grid grid-cols-3 gap-2 text-[9px]">
-                                <div>
-                                  <span className="text-[var(--text-muted)] block">LLM Cost</span>
-                                  <span className="font-semibold text-[var(--text-secondary)] font-mono">${llmCost.toFixed(4)}</span>
-                                </div>
-                                <div>
-                                  <span className="text-[var(--text-muted)] block">Voice Cost</span>
-                                  <span className="font-semibold text-[var(--text-secondary)] font-mono">${voiceCost.toFixed(4)}</span>
-                                </div>
-                                <div>
-                                  <span className="text-[var(--text-muted)] block">Total Cost</span>
-                                  <span className="font-bold text-[var(--brand-emerald)] font-mono">${(llmCost + voiceCost).toFixed(4)}</span>
-                                </div>
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
