@@ -4,7 +4,6 @@ import FeaturesSection from "@/components/landing/FeaturesSection";
 import AnalyticsSection from "@/components/landing/AnalyticsSection";
 import IntegrationsSection from "@/components/landing/IntegrationsSection";
 import MultiLanguageSection from "@/components/landing/MultiLanguageSection";
-import PricingSection from "@/components/landing/PricingSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import FAQSection from "@/components/landing/FAQSection";
 import CTASection from "@/components/landing/CTASection";
@@ -23,8 +22,6 @@ export default function LandingPage() {
       <IntegrationsSection />
       <div className="section-divider" />
       <MultiLanguageSection />
-      <div className="section-divider" />
-      <PricingSection />
       <div className="section-divider" />
       <TestimonialsSection />
       <div className="section-divider" />

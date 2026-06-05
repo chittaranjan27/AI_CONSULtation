@@ -71,12 +71,6 @@ export default function CTASection() {
                 Get Started Free
                 <ArrowRight className="w-5 h-5" />
               </Link>
-              <Link
-                href="#pricing"
-                className="btn-secondary text-base py-4 px-10"
-              >
-                View Pricing
-              </Link>
             </motion.div>
 
             <motion.p

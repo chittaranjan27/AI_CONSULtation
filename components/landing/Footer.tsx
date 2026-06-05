@@ -6,7 +6,6 @@ import { Sparkles, Globe, ExternalLink, AtSign, Mail } from "lucide-react";
 const footerLinks = {
   Product: [
     { label: "Features", href: "#features" },
-    { label: "Pricing", href: "#pricing" },
     { label: "Analytics", href: "#analytics" },
     { label: "Integrations", href: "#integrations" },
     { label: "Changelog", href: "#" },

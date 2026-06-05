@@ -24,7 +24,6 @@ export default function Navbar() {
     { label: "Features", href: "#features" },
     { label: "Analytics", href: "#analytics" },
     { label: "Integrations", href: "#integrations" },
-    { label: "Pricing", href: "#pricing" },
     { label: "FAQ", href: "#faq" },
   ];
 
