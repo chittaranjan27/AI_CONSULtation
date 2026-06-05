@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 // GET — browser redirect (e.g. <a href="/api/auth/logout">)
 export async function GET(req: NextRequest) {
-  // Use the actual request origin so we don't break on http vs https mismatch
-  const redirectUrl = new URL("/login", req.url);
+  // Use the public application URL to avoid redirecting to the internal proxy port (localhost:8890)
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || req.url;
+  const redirectUrl = new URL("/login", baseUrl);
   const response = NextResponse.redirect(redirectUrl);
 
   response.cookies.set("session_token", "", {
