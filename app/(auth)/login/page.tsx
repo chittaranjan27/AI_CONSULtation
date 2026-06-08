@@ -39,7 +39,11 @@ export default function LoginPage() {
       if (!res.ok) {
         setError(data.error || "Login failed");
       } else {
-        router.push("/dashboard");
+        if (data.user?.role === "SUPER_ADMIN") {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard");
+        }
       }
     } catch {
       setError("Something went wrong. Please try again.");

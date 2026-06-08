@@ -724,3 +724,37 @@ model Product {
   @@index([category])
   @@index([chatbotId])
 }
+
+// ============================================
+// SYSTEM PLAN LIMITS (ADMIN)
+// ============================================
+
+model Plan {
+  id              String   @id @default(cuid())
+  name            String   // E.g., "Free", "Starter", "Pro", "Enterprise"
+  planType        PlanType @unique
+  priceMonthly    Float
+  priceYearly     Float
+  chatbotLimit    Int      // Allowed chatbots count
+  teamMemberLimit Int      // Allowed team members count
+  tokenLimit      Int      // LLM/Voice combined token limit
+  leadLimit       Int      // Lead capture limit
+  features        String[] // Features like "White Label", "Dedicated Support"
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// SYSTEM ALERTS & NOTIFICATIONS (ADMIN)
+// ============================================
+
+model SystemNotification {
+  id        String   @id @default(cuid())
+  type      String   // new_tenant, tenant_suspended, token_limit_reached, high_ai_costs, crm_sync_failed, payment_failed, system_error
+  title     String
+  message   String
+  metadata  Json?    // Optional JSON payload
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
