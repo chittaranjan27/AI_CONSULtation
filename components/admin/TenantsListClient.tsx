@@ -233,6 +233,31 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
     }
   };
 
+  // Impersonate Tenant
+  const handleImpersonate = async (tenantId: string) => {
+    setActionLoadingId(tenantId);
+    try {
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Redirect to dashboard as the impersonated tenant
+        window.location.href = data.redirect || "/dashboard";
+      } else {
+        alert("Failed to start impersonation session");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error starting impersonation session");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -380,6 +405,19 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </Link>
+
+                          <button
+                            onClick={() => handleImpersonate(t.id)}
+                            disabled={isLoading}
+                            className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-purple-500/10 text-[var(--brand-purple)] hover:text-purple-300 transition-colors"
+                            title="Impersonate Tenant"
+                          >
+                            {isLoading ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Shield className="w-3.5 h-3.5" />
+                            )}
+                          </button>
 
                           <button
                             onClick={() => {

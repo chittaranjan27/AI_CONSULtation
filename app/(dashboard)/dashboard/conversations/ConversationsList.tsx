@@ -13,6 +13,7 @@ import {
   Layers,
   ChevronRight,
   Info,
+  X,
 } from "lucide-react";
 
 interface Message {
@@ -106,6 +107,8 @@ export default function ConversationsList({
   initialConversations,
   chatbots,
 }: ConversationsListProps) {
+  const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
+  const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
   const [selectedBotId, setSelectedBotId] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedRating, setSelectedRating] = useState<string>("all");
@@ -116,19 +119,74 @@ export default function ConversationsList({
   const [activeView, setActiveView] = useState<"overview" | "timeline" | "transcript">("overview");
 
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
+  const conversationsRef = useRef<Conversation[]>(conversations);
+
+  // Sync ref
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  // Polling conversations for live updates (handoff detection)
+  useEffect(() => {
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/conversations");
+        if (res.ok && active) {
+          const data: Conversation[] = await res.json();
+          
+          let hasNewHandoff = false;
+          let handoffVisitorName = "";
+          
+          data.forEach((newConv) => {
+            if (newConv.status === "HANDOFF") {
+              const oldConv = conversationsRef.current.find((c) => c.id === newConv.id);
+              if (!oldConv || oldConv.status !== "HANDOFF") {
+                hasNewHandoff = true;
+                handoffVisitorName = newConv.visitor?.name || newConv.visitor?.email?.split("@")[0] || "Anonymous";
+              }
+            }
+          });
+          
+          if (hasNewHandoff) {
+            try {
+              const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav");
+              audio.play();
+            } catch (err) {
+              console.error("Audio playback failed:", err);
+            }
+            
+            setToast({
+              show: true,
+              message: `Handoff requested for conversation with ${handoffVisitorName}!`,
+            });
+          }
+          
+          setConversations(data);
+        }
+      } catch (error) {
+        console.error("Error polling conversations:", error);
+      }
+    }, 10000); // 10s short polling
+    
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Dynamic grouping counter for chatbots
   const botConversationsCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: initialConversations.length };
-    initialConversations.forEach((c) => {
+    const counts: Record<string, number> = { all: conversations.length };
+    conversations.forEach((c) => {
       counts[c.chatbotId] = (counts[c.chatbotId] || 0) + 1;
     });
     return counts;
-  }, [initialConversations]);
+  }, [conversations]);
 
   // Main Filter Logic
   const filteredConversations = useMemo(() => {
-    return initialConversations.filter((c) => {
+    return conversations.filter((c) => {
       const matchBot = selectedBotId === "all" || c.chatbotId === selectedBotId;
       const matchStatus = selectedStatus === "all" || c.status.toLowerCase() === selectedStatus;
 
@@ -495,11 +553,40 @@ export default function ConversationsList({
               <div className="p-4 bg-[var(--bg-tertiary)]/40 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-sm font-bold text-[var(--text-primary)]">
-                      {activeConversation.visitor?.name ||
-                        activeConversation.visitor?.email ||
-                        "Anonymous Visitor"}
-                    </h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-[var(--text-primary)]">
+                        {activeConversation.visitor?.name ||
+                          activeConversation.visitor?.email ||
+                          "Anonymous Visitor"}
+                      </h4>
+                      <select
+                        value={activeConversation.status.toLowerCase()}
+                        onChange={async (e) => {
+                          const newStatus = e.target.value.toUpperCase();
+                          try {
+                            const res = await fetch("/api/conversations", {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ id: activeConversation.id, status: newStatus }),
+                            });
+                            if (res.ok) {
+                              const updatedConv = await res.json();
+                              setConversations((prev) =>
+                                prev.map((c) => (c.id === updatedConv.id ? updatedConv : c))
+                              );
+                            }
+                          } catch (err) {
+                            console.error("Failed to update status:", err);
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[9px] font-semibold text-[var(--text-secondary)] outline-none cursor-pointer"
+                      >
+                        <option value="active">ACTIVE</option>
+                        <option value="closed">CLOSED</option>
+                        <option value="handoff">HANDOFF</option>
+                        <option value="archived">ARCHIVED</option>
+                      </select>
+                    </div>
                     <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
                       Bot: <strong>{activeConversation.chatbot?.name}</strong> · ID:{" "}
                       <span className="font-mono text-[9px]">{activeConversation.id}</span>
@@ -1001,6 +1088,27 @@ export default function ConversationsList({
           )}
         </div>
       </div>
+
+      {/* Toast alert */}
+      {toast.show && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="glass-card p-4 border-[var(--brand-purple)]/40 bg-[var(--bg-tertiary)]/95 shadow-2xl flex items-center gap-3 max-w-sm hover:transform-none">
+            <div className="w-8 h-8 rounded-full bg-[var(--brand-purple)]/20 flex items-center justify-center text-xs animate-bounce text-[var(--brand-purple)] shrink-0">
+              🔔
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-[var(--text-primary)]">Live Agent Handoff</p>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-0.5 truncate">{toast.message}</p>
+            </div>
+            <button
+              onClick={() => setToast({ show: false, message: "" })}
+              className="p-1 hover:bg-[var(--bg-glass-hover)] rounded text-[var(--text-muted)] hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

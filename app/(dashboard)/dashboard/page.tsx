@@ -17,6 +17,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
+import ConversionFunnel from "@/components/dashboard/ConversionFunnel";
 
 function formatTimeAgo(date: Date) {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -59,6 +60,8 @@ export default async function DashboardPage() {
     dbConversations,
     dbLeads,
     dbChatbots,
+    engagedConversationsCount,
+    qualifiedLeadsCount,
   ] = await Promise.all([
     prisma.conversation.count({ where: { tenantId } }),
     prisma.conversation.count({
@@ -148,6 +151,22 @@ export default async function DashboardPage() {
             leads: true,
           },
         },
+      },
+    }),
+    prisma.conversation.count({
+      where: {
+        tenantId,
+        messages: {
+          some: {
+            role: "ASSISTANT",
+          },
+        },
+      },
+    }),
+    prisma.lead.count({
+      where: {
+        tenantId,
+        status: "QUALIFIED",
       },
     }),
   ]);
@@ -405,6 +424,12 @@ export default async function DashboardPage() {
       ) : (
         /* Main Grid */
         <div className="space-y-6">
+          <ConversionFunnel
+            totalConversations={totalConversationsCount}
+            engagedConversations={engagedConversationsCount}
+            leadsCaptured={leadsCapturedCount}
+            qualifiedLeads={qualifiedLeadsCount}
+          />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Recent Conversations */}
             <div className="lg:col-span-2 glass-card p-0 hover:transform-none">

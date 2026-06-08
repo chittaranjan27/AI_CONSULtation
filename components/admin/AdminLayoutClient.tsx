@@ -24,6 +24,7 @@ import {
   Menu,
   LogOut,
   User,
+  Users,
   AlertTriangle,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ import {
 const adminNav = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Tenants", href: "/admin/tenants", icon: Building },
+  { label: "Users", href: "/admin/users", icon: Users },
   { label: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },
   { label: "Lead Analytics", href: "/admin/leads-analytics", icon: TrendingUp },
   { label: "Chatbot Analytics", href: "/admin/chatbot-analytics", icon: Bot },
@@ -68,6 +70,12 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
 
   const sidebarMenuRef = useRef<HTMLDivElement>(null);
   const topBarMenuRef = useRef<HTMLDivElement>(null);
+
+  // Load sidebar state from cookies
+  useEffect(() => {
+    const isCollapsed = document.cookie.split("; ").find(row => row.startsWith("sidebar_collapsed="))?.split("=")[1] === "true";
+    setSidebarCollapsed(isCollapsed);
+  }, []);
 
   const userName = user?.name || "Admin";
   const userEmail = user?.email || "";
@@ -144,7 +152,11 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
       >
         {/* Toggle Button */}
         <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onClick={() => {
+            const nextState = !sidebarCollapsed;
+            setSidebarCollapsed(nextState);
+            document.cookie = `sidebar_collapsed=${nextState}; path=/; max-age=${60 * 60 * 24 * 365}`;
+          }}
           className="absolute right-[-10px] top-[26px] z-50 w-5 h-5 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-primary)] hover:bg-[var(--bg-glass-hover)] hover:border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center shadow-md transition-all cursor-pointer"
           title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >

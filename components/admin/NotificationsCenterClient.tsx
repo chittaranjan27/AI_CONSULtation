@@ -50,7 +50,7 @@ export default function NotificationsCenterClient({
   const handleMarkRead = async (id: string) => {
     setActionLoadingId(id);
     try {
-      const res = await fetch("/api/admin/notifications", {
+      const res = await fetch("/api/admin/notifications/dismiss", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -73,10 +73,10 @@ export default function NotificationsCenterClient({
   const handleMarkAllRead = async () => {
     setIsBulkLoading(true);
     try {
-      const res = await fetch("/api/admin/notifications", {
+      const res = await fetch("/api/admin/notifications/dismiss", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markAll: true }),
+        body: JSON.stringify({ dismissAll: true }),
       });
 
       if (res.ok) {

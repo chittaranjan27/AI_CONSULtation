@@ -26,6 +26,7 @@ export async function GET() {
       tenantName: session.user.tenantName,
       tenantSlug: session.user.tenantSlug,
       tenantPlan: session.user.tenantPlan,
+      isImpersonating: (session.user as any).isImpersonating || false,
     });
   } catch (error) {
     console.error("[AUTH_ME]", error);

@@ -24,6 +24,7 @@ import {
   LogOut,
   User,
   ShoppingBag,
+  Shield,
 } from "lucide-react";
 
 const mainNav = [
@@ -54,11 +55,24 @@ export default function DashboardLayout({
   const sidebarMenuRef = useRef<HTMLDivElement>(null);
   const topBarMenuRef = useRef<HTMLDivElement>(null);
 
+  // Workspace switcher state
+  const [workspaces, setWorkspaces] = useState<{ tenantId: string; name: string; slug: string; plan: string; isActiveWorkspace: boolean }[]>([]);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
+
+  // Load sidebar state from cookies
+  useEffect(() => {
+    const isCollapsed = document.cookie.split("; ").find(row => row.startsWith("sidebar_collapsed="))?.split("=")[1] === "true";
+    setSidebarCollapsed(isCollapsed);
+  }, []);
+
   // Real user session state
   const [currentUser, setCurrentUser] = useState<{
     name: string;
     email: string;
     tenantPlan: string;
+    tenantName?: string;
+    isImpersonating?: boolean;
   } | null>(null);
 
   // Fetch the real logged-in user's info
@@ -69,7 +83,41 @@ export default function DashboardLayout({
         if (data) setCurrentUser(data);
       })
       .catch(() => {});
+
+    // Fetch workspaces list
+    fetch("/api/auth/workspaces")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setWorkspaces(data))
+      .catch(() => {});
   }, []);
+
+  const handleStopImpersonating = async () => {
+    try {
+      const res = await fetch("/api/admin/impersonate", { method: "DELETE" });
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = data.redirect || "/admin/tenants";
+      }
+    } catch (err) {
+      console.error("Failed to stop impersonation:", err);
+    }
+  };
+
+  const handleSwitchWorkspace = async (tenantId: string) => {
+    try {
+      const res = await fetch("/api/auth/switch-workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = data.redirect || "/dashboard";
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const userName = currentUser?.name || "User";
   const userEmail = currentUser?.email || "";
@@ -84,6 +132,9 @@ export default function DashboardLayout({
       }
       if (topBarMenuRef.current && !topBarMenuRef.current.contains(e.target as Node)) {
         setTopBarUserMenu(false);
+      }
+      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
+        setSwitcherOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -105,7 +156,11 @@ export default function DashboardLayout({
       >
         {/* Toggle Button (Floating on the border) */}
         <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onClick={() => {
+            const nextState = !sidebarCollapsed;
+            setSidebarCollapsed(nextState);
+            document.cookie = `sidebar_collapsed=${nextState}; path=/; max-age=${60 * 60 * 24 * 365}`;
+          }}
           className="absolute right-[-10px] top-[26px] z-50 w-5 h-5 rounded-full bg-[var(--bg-elevated)] border border-[var(--border-primary)] hover:bg-[var(--bg-glass-hover)] hover:border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center justify-center shadow-md transition-all cursor-pointer"
           title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
@@ -232,6 +287,22 @@ export default function DashboardLayout({
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {currentUser?.isImpersonating && (
+          <div className="bg-gradient-to-r from-purple-900/90 to-indigo-950/90 text-white text-xs px-4 py-2 border-b border-purple-500/30 flex items-center justify-between z-50 shrink-0">
+            <span className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-purple-400 shrink-0" />
+              <span>
+                <strong>Impersonation Session:</strong> Viewing dashboard as <strong>{currentUser.name}</strong> ({currentUser.email}).
+              </span>
+            </span>
+            <button
+              onClick={handleStopImpersonating}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-1 px-3 rounded text-[11px] transition-colors cursor-pointer"
+            >
+              Stop Impersonating
+            </button>
+          </div>
+        )}
         {/* Top Bar */}
         <header className="h-[var(--nav-height)] flex items-center justify-between px-4 sm:px-6 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] shrink-0">
           {/* Mobile menu toggle */}
@@ -254,6 +325,43 @@ export default function DashboardLayout({
               ⌘K
             </kbd>
           </div>
+
+          {/* Workspace Switcher */}
+          {workspaces.length > 1 && (
+            <div className="relative" ref={switcherRef}>
+              <button
+                onClick={() => setSwitcherOpen(!switcherOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)] text-xs text-[var(--text-secondary)] hover:text-white transition-colors cursor-pointer"
+              >
+                <span>Workspace: <strong>{currentUser?.tenantName || "Loading..."}</strong></span>
+                <ChevronRight className="w-3.5 h-3.5 rotate-90" />
+              </button>
+              {switcherOpen && (
+                <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-56 bg-[var(--bg-elevated)] border border-[var(--border-primary)] rounded-xl shadow-xl overflow-hidden z-50">
+                  <div className="p-2 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)]/20">
+                    <p className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold tracking-wider px-2">Switch Workspace</p>
+                  </div>
+                  <div className="p-1 space-y-0.5 max-h-60 overflow-y-auto">
+                    {workspaces.map((ws) => (
+                      <button
+                        key={ws.tenantId}
+                        disabled={ws.isActiveWorkspace}
+                        onClick={() => handleSwitchWorkspace(ws.tenantId)}
+                        className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${
+                          ws.isActiveWorkspace
+                            ? "bg-[var(--brand-purple)]/10 text-[var(--brand-purple)] font-semibold cursor-not-allowed"
+                            : "text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-glass-hover)] cursor-pointer"
+                        }`}
+                      >
+                        <span className="truncate pr-2">{ws.name}</span>
+                        <span className="text-[9px] uppercase font-mono text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded border border-[var(--border-primary)] shrink-0">{ws.plan}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Right side */}
           <div className="flex items-center gap-3">

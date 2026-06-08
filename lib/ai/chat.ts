@@ -276,6 +276,11 @@ You MUST generate ALL output in ${langName}, including:
 - Product recommendation descriptions and action prompts
 Do NOT leave option buttons in English when the conversation language is ${langName}. The entire consultation experience must feel native in the user's selected language.`;
 
+  // ── Human Handoff Signal (applies to ALL chatbot types) ──
+  systemPrompt += `\n\n[HUMAN AGENT HANDOFF]
+If the user explicitly requests to speak with a human support agent, a real person, or when they are frustrated or stuck and you cannot help them, you MUST call the 'trigger_handoff' tool to alert the support staff.
+Let the user know that a representative has been notified and will follow up shortly. Keep your text response brief and warm.`;
+
   // ── Conversation End Signal (applies to ALL chatbot types) ──
   systemPrompt += `\n\n[CONVERSATION END SIGNAL]
 When the conversation is naturally concluding — the user says goodbye, thanks you and wants to leave, expresses they have no more questions, or you have delivered your final farewell/wrap-up response — you MUST call the 'end_conversation' tool.
@@ -294,12 +299,12 @@ Call it alongside your farewell text response. Examples of when to call it:
         ? ` using these base options: ${JSON.stringify(matchedStep.options)}. If the active conversation language is NOT English, translate each option naturally into the active language while keeping the meaning and intent identical.`
         : "";
       systemPrompt += `\n\n[FINAL REINFORCEMENT]
-You are currently on Step ${matchedStep.stepNumber} ("${matchedStep.title}"), which is configured as OPTIONS mode.
-You MUST call the 'show_options' tool${stepOptsStr}. Do NOT write the options as numbered lists or text. Call the tool to show them as buttons.`;
+    You are currently on Step ${matchedStep.stepNumber} ("${matchedStep.title}"), which is configured as OPTIONS mode.
+    You MUST call the 'show_options' tool${stepOptsStr}. Do NOT write the options as numbered lists or text. Call the tool to show them as buttons.`;
     } else {
       systemPrompt += `\n\n[FINAL REINFORCEMENT]
-You are currently on Step ${matchedStep.stepNumber} ("${matchedStep.title}"), which is configured as FREE-TEXT mode.
-Do NOT call the 'show_options' tool. Ask a warm, professional question and let the user reply freely by typing.`;
+    You are currently on Step ${matchedStep.stepNumber} ("${matchedStep.title}"), which is configured as FREE-TEXT mode.
+    Do NOT call the 'show_options' tool. Ask a warm, professional question and let the user reply freely by typing.`;
     }
   }
 
@@ -382,6 +387,31 @@ Do NOT call the 'show_options' tool. Ask a warm, professional question and let t
             console.error("Error fetching local products in tool:", error);
             return [];
           }
+        },
+      }),
+      trigger_handoff: tool({
+        description: "Request a transfer to a human support agent. Call this when the user explicitly asks to speak with a human, a real person, a support agent, or when they are frustrated/stuck and you cannot help them.",
+        inputSchema: z.object({
+          reason: z.string().describe("The reason why handoff is being requested")
+        }),
+        execute: async ({ reason }) => {
+          if (config.conversationId) {
+            try {
+              await prisma.conversation.update({
+                where: { id: config.conversationId },
+                data: {
+                  status: "HANDOFF",
+                  metadata: {
+                    ...existingMeta,
+                    handoffReason: reason,
+                  },
+                },
+              });
+            } catch (e) {
+              console.error("Failed to update status to HANDOFF:", e);
+            }
+          }
+          return { handoffTriggered: true, reason };
         },
       }),
       // Conversation end signal tool — the LLM calls this when the conversation is concluding

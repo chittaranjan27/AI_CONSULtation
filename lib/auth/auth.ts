@@ -36,6 +36,28 @@ export async function auth() {
       return null;
     }
 
+    let tenantId = user.tenantId;
+    let tenantName = user.tenant.name;
+    let tenantSlug = user.tenant.slug;
+    let tenantPlan = user.tenant.plan;
+    let isImpersonating = false;
+
+    if (user.role === "SUPER_ADMIN") {
+      const impersonatedCookie = cookieStore.get("impersonated_tenant_id");
+      if (impersonatedCookie && impersonatedCookie.value) {
+        const targetTenant = await prisma.tenant.findUnique({
+          where: { id: impersonatedCookie.value },
+        });
+        if (targetTenant) {
+          tenantId = targetTenant.id;
+          tenantName = targetTenant.name;
+          tenantSlug = targetTenant.slug;
+          tenantPlan = targetTenant.plan;
+          isImpersonating = true;
+        }
+      }
+    }
+
     return {
       user: {
         id: user.id,
@@ -43,10 +65,11 @@ export async function auth() {
         name: user.name || "User",
         image: user.avatar || undefined,
         role: user.role as "SUPER_ADMIN" | "TENANT_OWNER" | "MANAGER" | "SUPPORT_AGENT" | "ANALYST",
-        tenantId: user.tenantId,
-        tenantName: user.tenant.name,
-        tenantSlug: user.tenant.slug,
-        tenantPlan: user.tenant.plan,
+        tenantId,
+        tenantName,
+        tenantSlug,
+        tenantPlan,
+        isImpersonating,
       },
     };
   } catch {

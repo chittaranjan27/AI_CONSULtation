@@ -3,6 +3,7 @@ import prisma from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
 import { FileText, Globe, Database, ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
+import VectorSearchDebugger from "@/components/dashboard/VectorSearchDebugger";
 
 function formatBytes(bytes: number, decimals = 1) {
   if (!bytes) return "0 B";
@@ -21,8 +22,8 @@ export default async function KnowledgeBasePage() {
 
   const tenantId = session.user.tenantId;
 
-  // Fetch real knowledge base metrics and documents in parallel
-  const [documents, docCount, crawlJobsCount, chunksCount] = await Promise.all([
+  // Fetch real knowledge base metrics, documents, and chatbots in parallel
+  const [documents, docCount, crawlJobsCount, chunksCount, chatbots] = await Promise.all([
     prisma.document.findMany({
       where: { tenantId },
       select: {
@@ -46,6 +47,10 @@ export default async function KnowledgeBasePage() {
     }),
     prisma.documentChunk.count({
       where: { document: { tenantId } },
+    }),
+    prisma.chatbot.findMany({
+      where: { tenantId },
+      select: { id: true, name: true },
     }),
   ]);
 
@@ -124,6 +129,19 @@ export default async function KnowledgeBasePage() {
           </div>
         )}
       </div>
+
+      {/* Vector Debugger Terminal */}
+      {chatbots.length > 0 && (
+        <div className="space-y-4">
+          <div className="border-t border-[var(--border-primary)]/40 pt-6">
+            <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+              <Database className="w-5 h-5 text-[var(--brand-purple)]" />
+              Knowledge Debug Console
+            </h2>
+          </div>
+          <VectorSearchDebugger chatbots={chatbots} />
+        </div>
+      )}
     </div>
   );
 }

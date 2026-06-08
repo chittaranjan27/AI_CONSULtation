@@ -88,6 +88,7 @@ interface ChatbotData {
   widgetPosition: string;
   widgetConfig: Record<string, string> | null;
   leadCaptureEnabled: boolean;
+  leadCaptureFields: any;
   documents: ChatbotDoc[];
   _count: { conversations: number; leads: number };
   consultationSteps?: unknown;
@@ -128,6 +129,7 @@ interface ChatbotEditorProps {
 const TABS = [
   { id: "general", label: "General", icon: Settings },
   { id: "ai", label: "AI Config", icon: Zap },
+  { id: "leads_config", label: "Lead Qualification", icon: Target },
   { id: "analytics", label: "Analytics & Usage", icon: TrendingUp },
   { id: "widget", label: "Widget", icon: Palette },
   { id: "steps", label: "Intake Steps", icon: Workflow },
@@ -208,6 +210,31 @@ export default function ChatbotEditor({
   const [widgetMode, setWidgetMode] = useState(chatbot.widgetMode || "FLOATING");
   const [widgetPosition, setWidgetPosition] = useState(chatbot.widgetPosition);
   const [leadCaptureEnabled, setLeadCaptureEnabled] = useState(chatbot.leadCaptureEnabled);
+  const [leadFields, setLeadFields] = useState<{ name: string; label: string; enabled: boolean; required: boolean }[]>(() => {
+    const defaultFields = [
+      { name: "name", label: "Full Name", enabled: true, required: true },
+      { name: "email", label: "Email Address", enabled: true, required: true },
+      { name: "phone", label: "Phone Number", enabled: false, required: false },
+      { name: "company", label: "Company Name", enabled: false, required: false },
+    ];
+    if (chatbot.leadCaptureFields && typeof chatbot.leadCaptureFields === "object") {
+      const parsed = chatbot.leadCaptureFields as any;
+      if (Array.isArray(parsed.fields)) {
+        return parsed.fields;
+      }
+    }
+    return defaultFields;
+  });
+
+  const [scoringRules, setScoringRules] = useState<{ key: string; value: string; score: number }[]>(() => {
+    if (chatbot.leadCaptureFields && typeof chatbot.leadCaptureFields === "object") {
+      const parsed = chatbot.leadCaptureFields as any;
+      if (Array.isArray(parsed.scoringRules)) {
+        return parsed.scoringRules;
+      }
+    }
+    return [];
+  });
   const [botIconUrl, setBotIconUrl] = useState(chatbot.widgetConfig?.botIconUrl || "");
   const [backgroundImageUrl, setBackgroundImageUrl] = useState(chatbot.widgetConfig?.backgroundImageUrl || "");
   const [supportedLanguages, setSupportedLanguages] = useState<string[]>(chatbot.supportedLanguages || ["en"]);
@@ -470,6 +497,7 @@ export default function ChatbotEditor({
             backgroundImageUrl,
           },
           leadCaptureEnabled,
+          leadCaptureFields: { fields: leadFields, scoringRules },
           consultationSteps,
           supportedLanguages,
           language,
@@ -1124,6 +1152,170 @@ export default function ChatbotEditor({
                   {savingKey ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save Key"}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lead Qualification Tab */}
+        {activeTab === "leads_config" && (
+          <div className="space-y-6 max-w-3xl animate-fade-in-up">
+            <div>
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Lead Fields & Qualification</h3>
+              <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
+                Enable lead collection triggers and configure scoring metrics for intake answers.
+              </p>
+            </div>
+
+            {/* Toggle Pre-Chat Lead collection */}
+            <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-primary)]">
+              <div>
+                <h4 className="text-xs font-bold text-[var(--text-primary)]">Pre-Chat Lead Form</h4>
+                <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">Collect visitor information before beginning the AI consultation thread.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLeadCaptureEnabled(!leadCaptureEnabled)}
+                className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${leadCaptureEnabled ? "bg-[var(--brand-emerald)]" : "bg-[var(--bg-glass-hover)]"
+                  }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${leadCaptureEnabled ? "left-[22px]" : "left-0.5"
+                    }`}
+                />
+              </button>
+            </div>
+
+            {/* Fields Selection */}
+            {leadCaptureEnabled && (
+              <div className="p-5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-primary)] space-y-4">
+                <h4 className="text-xs font-bold text-[var(--text-primary)]">Collectable Input Fields</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {leadFields.map((field, index) => (
+                    <div key={field.name} className="p-3.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-semibold text-[var(--text-primary)]">{field.label}</span>
+                        <span className="text-[10px] text-[var(--text-muted)] block">Field key: {field.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={field.enabled}
+                            disabled={field.name === "email" || field.name === "name"}
+                            onChange={(e) => {
+                              const updated = [...leadFields];
+                              updated[index].enabled = e.target.checked;
+                              setLeadFields(updated);
+                            }}
+                            className="rounded text-[var(--brand-purple)]"
+                          />
+                          <span className="text-[10px] text-[var(--text-secondary)]">Collect</span>
+                        </label>
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={field.required}
+                            disabled={!field.enabled || field.name === "email" || field.name === "name"}
+                            onChange={(e) => {
+                              const updated = [...leadFields];
+                              updated[index].required = e.target.checked;
+                              setLeadFields(updated);
+                            }}
+                            className="rounded text-[var(--brand-purple)]"
+                          />
+                          <span className="text-[10px] text-[var(--text-secondary)]">Required</span>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Dynamic Qualification Scoring Configurator */}
+            <div className="p-5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-primary)] space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-[var(--text-primary)]">Lead Scoring Rules</h4>
+                  <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">Define points to add or subtract when user answers contain specific words.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setScoringRules([...scoringRules, { key: "", value: "", score: 10 }])}
+                  className="btn-secondary text-[10px] py-1.5 px-3 flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Rule
+                </button>
+              </div>
+
+              {scoringRules.length === 0 ? (
+                <div className="p-6 text-center text-[var(--text-muted)] border border-dashed border-[var(--border-primary)] rounded-lg text-xs">
+                  No rules set. Leads default to a qualification score of 0.
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                  {scoringRules.map((rule, index) => (
+                    <div key={index} className="flex items-center gap-3 p-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-xs">
+                      <div className="flex-1">
+                        <label className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Key Parameter</label>
+                        <input
+                          type="text"
+                          required
+                          value={rule.key}
+                          onChange={(e) => {
+                            const updated = [...scoringRules];
+                            updated[index].key = e.target.value;
+                            setScoringRules(updated);
+                          }}
+                          placeholder="e.g. concern, budget"
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)] outline-none text-xs text-[var(--text-primary)]"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Match Keyword</label>
+                        <input
+                          type="text"
+                          required
+                          value={rule.value}
+                          onChange={(e) => {
+                            const updated = [...scoringRules];
+                            updated[index].value = e.target.value;
+                            setScoringRules(updated);
+                          }}
+                          placeholder="e.g. hair loss, $1000+"
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)] outline-none text-xs text-[var(--text-primary)]"
+                        />
+                      </div>
+                      <div className="w-20">
+                        <label className="text-[9px] text-[var(--text-muted)] uppercase block mb-1">Score Weight</label>
+                        <input
+                          type="number"
+                          required
+                          value={rule.score}
+                          onChange={(e) => {
+                            const updated = [...scoringRules];
+                            updated[index].score = parseInt(e.target.value) || 0;
+                            setScoringRules(updated);
+                          }}
+                          placeholder="e.g. 25"
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)] outline-none text-xs text-center font-bold text-[var(--text-primary)]"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = scoringRules.filter((_, rIdx) => rIdx !== index);
+                          setScoringRules(updated);
+                        }}
+                        className="p-2 mt-4 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Rule"
+                      >
+                        <Trash2 className="w-4 h-4 text-[var(--text-muted)] hover:text-red-400" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
