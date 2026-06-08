@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -37,22 +36,6 @@ interface AdminDashboardChartsProps {
 const COLORS = ["#64748b", "#3b82f6", "#8b5cf6", "#ec4899"];
 
 export default function AdminDashboardCharts({ growthData, planData }: AdminDashboardChartsProps) {
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-pulse">
-        <div className="glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
-        <div className="glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
-        <div className="glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
-        <div className="glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
-      </div>
-    );
-  }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Chart 1: Revenue vs AI Cost */}

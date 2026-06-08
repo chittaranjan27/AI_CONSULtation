@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -32,21 +31,6 @@ interface RevenueChartsProps {
 const COLORS = ["#64748b", "#3b82f6", "#8b5cf6", "#ec4899"];
 
 export default function RevenueCharts({ timelineData, planData }: RevenueChartsProps) {
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
-        <div className="lg:col-span-2 glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
-        <div className="glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
-        <div className="lg:col-span-3 glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
-      </div>
-    );
-  }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Revenue growth timeline */}

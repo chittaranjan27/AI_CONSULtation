@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 
 interface ChatbotAnalyticsChartsProps {
@@ -11,20 +10,6 @@ interface ChatbotAnalyticsChartsProps {
 const COLORS = ["#8b5cf6", "#3b82f6", "#06b6d4", "#ec4899", "#10b981", "#f59e0b"];
 
 export default function ChatbotAnalyticsCharts({ providerData, modelData }: ChatbotAnalyticsChartsProps) {
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-pulse">
-        <div className="glass-card p-5 h-80 bg-[var(--bg-tertiary)]/20" />
-        <div className="glass-card p-5 h-80 bg-[var(--bg-tertiary)]/20" />
-      </div>
-    );
-  }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Provider Share */}
