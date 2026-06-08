@@ -15,6 +15,11 @@ import {
   Shield,
   Layers,
   Key,
+  Plus,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 interface UserRecord {
@@ -33,9 +38,10 @@ interface UserRecord {
 
 interface UsersListClientProps {
   initialUsers: UserRecord[];
+  tenants: { id: string; name: string; slug: string }[];
 }
 
-export default function UsersListClient({ initialUsers }: UsersListClientProps) {
+export default function UsersListClient({ initialUsers, tenants }: UsersListClientProps) {
   const router = useRouter();
   const [users, setUsers] = useState<UserRecord[]>(initialUsers);
   const [searchTerm, setSearchTerm] = useState("");
@@ -56,6 +62,103 @@ export default function UsersListClient({ initialUsers }: UsersListClientProps) 
 
   // Action loading indicators
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // Create User Modal State
+  const [createOpen, setCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "SUPPORT_AGENT",
+    tenantId: tenants[0]?.id || "",
+  });
+
+  // Credentials Generated Success Modal State
+  const [credentialsModal, setCredentialsModal] = useState<{
+    name?: string;
+    email: string;
+    password?: string;
+    tenantName?: string;
+    role?: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const generateRandomPassword = () => {
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let password = "";
+    password += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)];
+    password += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)];
+    password += "0123456789"[Math.floor(Math.random() * 10)];
+    password += "!@#$%^&*"[Math.floor(Math.random() * 8)];
+    for (let i = 0; i < 8; i++) {
+      password += charset[Math.floor(Math.random() * charset.length)];
+    }
+    password = password.split('').sort(() => 0.5 - Math.random()).join('');
+    setCreateForm((prev) => ({ ...prev, password }));
+  };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreating(true);
+    setCreateError("");
+
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setCreateError(data.error || "Failed to create user");
+      } else {
+        const selectedTenant = tenants.find((t) => t.id === createForm.tenantId);
+        setCredentialsModal({
+          name: createForm.name,
+          email: createForm.email,
+          password: createForm.password,
+          tenantName: selectedTenant?.name || "Unknown Workspace",
+          role: createForm.role.replace("_", " "),
+        });
+        setCreateOpen(false);
+        setShowPassword(false);
+        setCreateForm({
+          name: "",
+          email: "",
+          password: "",
+          role: "SUPPORT_AGENT",
+          tenantId: tenants[0]?.id || "",
+        });
+        router.refresh();
+        const refreshRes = await fetch("/api/admin/users");
+        if (refreshRes.ok) {
+          const freshUsers = await refreshRes.json();
+          const formatted = freshUsers.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            isActive: u.isActive,
+            lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : null,
+            createdAt: new Date(u.createdAt).toISOString(),
+            tenant: {
+              name: u.tenant.name,
+              slug: u.tenant.slug,
+            },
+          }));
+          setUsers(formatted);
+        }
+      }
+    } catch {
+      setCreateError("An error occurred. Please try again.");
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   // Filter Logic
   const filteredUsers = users.filter((u) => {
@@ -199,6 +302,10 @@ export default function UsersListClient({ initialUsers }: UsersListClientProps) 
             Global directory of all {users.length} users registered across all workspace tenants.
           </p>
         </div>
+        <button onClick={() => setCreateOpen(true)} className="btn-primary text-sm py-2.5 px-5 shrink-0">
+          <Plus className="w-4 h-4" />
+          Create User
+        </button>
       </div>
 
       {/* Filters bar */}
@@ -498,6 +605,234 @@ export default function UsersListClient({ initialUsers }: UsersListClientProps) 
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Slide-over Panel: Create User */}
+      {createOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-[var(--bg-secondary)] border-l border-[var(--border-primary)] shadow-2xl flex flex-col h-full animate-fade-in-scale">
+            {/* Header */}
+            <div className="p-5 border-b border-[var(--border-primary)] flex items-center justify-between bg-[var(--bg-tertiary)]/20">
+              <div>
+                <h2 className="text-base font-bold text-[var(--text-primary)]">Create New User</h2>
+                <p className="text-xs text-[var(--text-tertiary)]">Add a user to a tenant workspace and assign system roles</p>
+              </div>
+              <button
+                onClick={() => {
+                  setCreateOpen(false);
+                  setShowPassword(false);
+                }}
+                className="p-1.5 rounded-lg hover:bg-[var(--bg-glass-hover)] text-[var(--text-secondary)] hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Error Message */}
+            {createError && (
+              <div className="mx-5 mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                <AlertOctagon className="w-4 h-4 shrink-0" />
+                {createError}
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleCreateSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <label className="input-label">User Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                  <input
+                    type="text"
+                    value={createForm.name}
+                    onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                    className="input-field !pl-10 !py-2.5 text-sm"
+                    placeholder="e.g. John Doe"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="input-label">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                  <input
+                    type="email"
+                    value={createForm.email}
+                    onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                    className="input-field !pl-10 !py-2.5 text-sm"
+                    placeholder="user@workspace.com"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="input-label !mb-0">Temporary Password</label>
+                  <button
+                    type="button"
+                    onClick={generateRandomPassword}
+                    className="text-xs text-[var(--brand-purple)] hover:text-purple-400 font-semibold transition-colors"
+                  >
+                    Generate Password
+                  </button>
+                </div>
+                <div className="relative">
+                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                    className="input-field !pl-10 !pr-10 !py-2.5 text-sm"
+                    placeholder="Set temporary password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="input-label">Workspace Tenant Assignment</label>
+                <div className="relative">
+                  <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                  <select
+                    value={createForm.tenantId}
+                    onChange={(e) => setCreateForm({ ...createForm, tenantId: e.target.value })}
+                    className="input-field !pl-10 !py-2.5 text-sm"
+                    required
+                  >
+                    {tenants.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.slug})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="input-label">System Role Authorization</label>
+                <div className="relative">
+                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                  <select
+                    value={createForm.role}
+                    onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
+                    className="input-field !pl-10 !py-2.5 text-sm"
+                    required
+                  >
+                    <option value="TENANT_OWNER">Tenant Owner (Full Access)</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="SUPPORT_AGENT">Support Agent</option>
+                    <option value="ANALYST">Analyst</option>
+                    <option value="SUPER_ADMIN">Super Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-6 border-t border-[var(--border-primary)] mt-8">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    setShowPassword(false);
+                  }}
+                  className="btn-secondary text-sm py-2 px-6 flex-1 justify-center"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="btn-primary text-sm py-2 px-6 flex-1 justify-center"
+                >
+                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create User"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Success Credentials Modal */}
+      {credentialsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-xl shadow-2xl p-6 space-y-4 animate-fade-in-scale">
+            <div className="flex items-center gap-3 pb-3 border-b border-[var(--border-primary)]">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[var(--text-primary)]">User Account Provisioned</h3>
+                <p className="text-xs text-[var(--text-tertiary)]">New user credentials generated</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                Please copy the credentials below and share them securely with the user. <strong>These credentials will not be shown again.</strong>
+              </p>
+
+              <div className="rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)] p-4 space-y-3.5">
+                <div>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">User Name</span>
+                  <span className="text-xs text-[var(--text-primary)] font-medium block">{credentialsModal.name || "Unnamed"}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">Workspace Tenant</span>
+                  <span className="text-xs text-[var(--text-primary)] font-medium block">{credentialsModal.tenantName}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">System Role</span>
+                  <span className="badge badge-purple text-[10px] uppercase font-bold mt-0.5">{credentialsModal.role}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">Login Email Address</span>
+                  <span className="text-xs text-[var(--text-primary)] font-mono block">{credentialsModal.email}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">Temporary Password</span>
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    <span className="text-xs text-[var(--text-primary)] font-mono break-all bg-black/30 px-2 py-1 rounded border border-[var(--border-primary)] flex-1 select-all">
+                      {credentialsModal.password}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (credentialsModal.password) {
+                          navigator.clipboard.writeText(credentialsModal.password);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--bg-glass-hover)] border border-[var(--border-primary)] text-[var(--text-secondary)] hover:text-white transition-colors"
+                      title="Copy Password"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setCredentialsModal(null)}
+                className="btn-primary w-full py-2 text-sm justify-center"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

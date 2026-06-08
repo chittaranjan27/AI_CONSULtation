@@ -20,6 +20,8 @@ import {
   Shield,
   Layers,
   Calendar,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface Tenant {
@@ -76,6 +78,32 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
   // Status/Action Loading State
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
+  // Credentials Generated Success Modal State
+  const [credentialsModal, setCredentialsModal] = useState<{
+    companyName?: string;
+    email: string;
+    password?: string;
+    tenantSlug?: string;
+    role?: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const generateRandomPassword = () => {
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let password = "";
+    // Ensure at least one lowercase, uppercase, digit, and special char
+    password += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)];
+    password += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)];
+    password += "0123456789"[Math.floor(Math.random() * 10)];
+    password += "!@#$%^&*"[Math.floor(Math.random() * 8)];
+    for (let i = 0; i < 8; i++) {
+      password += charset[Math.floor(Math.random() * charset.length)];
+    }
+    // Shuffle the password
+    password = password.split('').sort(() => 0.5 - Math.random()).join('');
+    setCreateForm((prev) => ({ ...prev, password }));
+  };
+
   // Search & Filter Logic
   const filteredTenants = tenants.filter((t) => {
     const matchesSearch =
@@ -127,6 +155,14 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
       if (!res.ok) {
         setCreateError(data.error || "Failed to create tenant");
       } else {
+        // Store credentials to show in modal before clearing
+        setCredentialsModal({
+          companyName: createForm.companyName,
+          tenantSlug: data.slug || createForm.companyName.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+          email: createForm.email,
+          password: createForm.password,
+          role: "Tenant Owner (Admin)"
+        });
         // Reset form & reload data
         setCreateOpen(false);
         setShowPassword(false);
@@ -553,7 +589,16 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
               </div>
 
               <div>
-                <label className="input-label">Owner Password</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="input-label !mb-0">Owner Password</label>
+                  <button
+                    type="button"
+                    onClick={generateRandomPassword}
+                    className="text-xs text-[var(--brand-purple)] hover:text-purple-400 font-semibold transition-colors"
+                  >
+                    Generate Password
+                  </button>
+                </div>
                 <div className="relative">
                   <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
                   <input
@@ -730,6 +775,72 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Success Credentials Modal */}
+      {credentialsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-xl shadow-2xl p-6 space-y-4 animate-fade-in-scale">
+            <div className="flex items-center gap-3 pb-3 border-b border-[var(--border-primary)]">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[var(--text-primary)]">Workspace Provisioned</h3>
+                <p className="text-xs text-[var(--text-tertiary)]">New tenant account successfully created</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                Please copy the credentials below and share them securely with the workspace owner. <strong>These credentials will not be shown again.</strong>
+              </p>
+
+              <div className="rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)] p-4 space-y-3.5">
+                <div>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">Company / Workspace</span>
+                  <span className="text-xs text-[var(--text-primary)] font-medium block">{credentialsModal.companyName}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">Login Email Address</span>
+                  <span className="text-xs text-[var(--text-primary)] font-mono block">{credentialsModal.email}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">Temporary Password</span>
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    <span className="text-xs text-[var(--text-primary)] font-mono break-all bg-black/30 px-2 py-1 rounded border border-[var(--border-primary)] flex-1 select-all">
+                      {credentialsModal.password}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (credentialsModal.password) {
+                          navigator.clipboard.writeText(credentialsModal.password);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--bg-glass-hover)] border border-[var(--border-primary)] text-[var(--text-secondary)] hover:text-white transition-colors"
+                      title="Copy Password"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setCredentialsModal(null)}
+                className="btn-primary w-full py-2 text-sm justify-center"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

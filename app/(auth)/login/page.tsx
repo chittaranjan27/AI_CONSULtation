@@ -191,14 +191,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-sm text-center text-[var(--text-secondary)] mt-6">
-            Don&apos;t have an account?{" "}
-            <Link
-              href="/register"
-              className="text-[var(--brand-purple)] hover:text-purple-400 font-medium transition-colors"
-            >
-              Sign up free
-            </Link>
+          <p className="text-xs text-center text-[var(--text-muted)] mt-8">
+            Looking to create a new workspace? <br />
+            Contact your organization&apos;s Super Admin to get set up.
           </p>
         </div>
       </div>

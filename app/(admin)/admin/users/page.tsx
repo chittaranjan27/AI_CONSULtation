@@ -19,6 +19,16 @@ export default async function AdminUsersPage() {
     orderBy: { createdAt: "desc" },
   });
 
+  // Query tenants/workspaces for user creation dropdown
+  const tenants = await prisma.tenant.findMany({
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+    },
+    orderBy: { name: "asc" },
+  });
+
   // Format the output structure
   const formattedUsers = users.map((u) => ({
     id: u.id,
@@ -34,5 +44,5 @@ export default async function AdminUsersPage() {
     },
   }));
 
-  return <UsersListClient initialUsers={formattedUsers} />;
+  return <UsersListClient initialUsers={formattedUsers} tenants={tenants} />;
 }
