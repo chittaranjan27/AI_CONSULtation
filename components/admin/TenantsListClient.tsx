@@ -11,6 +11,7 @@ import {
   CheckCircle,
   AlertOctagon,
   Eye,
+  EyeOff,
   X,
   Loader2,
   Building,
@@ -53,6 +54,7 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
   const [createOpen, setCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [createForm, setCreateForm] = useState({
     companyName: "",
     ownerName: "",
@@ -127,6 +129,7 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
       } else {
         // Reset form & reload data
         setCreateOpen(false);
+        setShowPassword(false);
         setCreateForm({
           companyName: "",
           ownerName: "",
@@ -443,7 +446,10 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
                 <p className="text-xs text-[var(--text-tertiary)]">Set up tenant and default owner accounts</p>
               </div>
               <button
-                onClick={() => setCreateOpen(false)}
+                onClick={() => {
+                  setCreateOpen(false);
+                  setShowPassword(false);
+                }}
                 className="p-1.5 rounded-lg hover:bg-[var(--bg-glass-hover)] text-[var(--text-secondary)] hover:text-white"
               >
                 <X className="w-5 h-5" />
@@ -513,14 +519,25 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
                 <div className="relative">
                   <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     name="password"
                     value={createForm.password}
                     onChange={handleCreateChange}
-                    className="input-field !pl-10 !py-2.5 text-sm"
+                    className="input-field !pl-10 !pr-10 !py-2.5 text-sm"
                     placeholder="Set temporary password"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               </div>
 
@@ -594,7 +611,10 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
               <div className="flex items-center gap-3 pt-6 border-t border-[var(--border-primary)] mt-8">
                 <button
                   type="button"
-                  onClick={() => setCreateOpen(false)}
+                  onClick={() => {
+                    setCreateOpen(false);
+                    setShowPassword(false);
+                  }}
                   className="btn-secondary text-sm py-2 px-6 flex-1 justify-center"
                 >
                   Cancel
