@@ -131,7 +131,7 @@ export default function SettingsClient({ initialConfig }: SettingsClientProps) {
                 }}
                 className={`flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold rounded-lg text-left transition-colors cursor-pointer w-full shrink-0 ${
                   active
-                    ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                    ? "bg-[var(--brand-purple)]/10 text-[var(--brand-purple)] border border-[var(--brand-purple)]/20"
                     : "text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-glass-hover)] border border-transparent"
                 }`}
               >
@@ -267,7 +267,7 @@ export default function SettingsClient({ initialConfig }: SettingsClientProps) {
                 </div>
                 <div className="space-y-4 pt-2">
                   <div className="border border-[var(--border-primary)] rounded-lg p-4 bg-[var(--bg-tertiary)]/10 space-y-3">
-                    <p className="text-xs font-semibold text-red-400">New Tenant Welcome Template</p>
+                    <p className="text-xs font-semibold text-[var(--brand-purple)]">New Tenant Welcome Template</p>
                     <div>
                       <label className="text-[10px] text-[var(--text-tertiary)] mb-1 block">Subject</label>
                       <input
@@ -288,7 +288,7 @@ export default function SettingsClient({ initialConfig }: SettingsClientProps) {
                   </div>
 
                   <div className="border border-[var(--border-primary)] rounded-lg p-4 bg-[var(--bg-tertiary)]/10 space-y-3">
-                    <p className="text-xs font-semibold text-red-400">Security Alert Template</p>
+                    <p className="text-xs font-semibold text-[var(--brand-purple)]">Security Alert Template</p>
                     <div>
                       <label className="text-[10px] text-[var(--text-tertiary)] mb-1 block">Subject</label>
                       <input

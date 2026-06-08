@@ -75,21 +75,39 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
 
   // Fetch unread notifications count
   useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
     const fetchUnreadCount = async () => {
+      if (document.visibilityState !== "visible") return;
       try {
         const res = await fetch("/api/admin/notifications/unread-count");
         if (res.ok) {
           const data = await res.json();
           setUnreadNotifications(data.count || 0);
+        } else if (res.status === 401) {
+          clearInterval(intervalId);
         }
       } catch (err) {
-        console.error("Failed to fetch unread notifications count:", err);
+        // Silently handle temporary network drops or HMR builds
       }
     };
+
     fetchUnreadCount();
+
     // Refresh count every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    intervalId = setInterval(fetchUnreadCount, 30000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchUnreadCount();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   // Close dropdowns on click outside
@@ -144,12 +162,12 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
           }`}
         >
           <Link href="/admin" className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-red-500/10">
-              <Sparkles className="w-4 h-4 text-white animate-pulse" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--brand-purple)] to-[var(--brand-blue)] flex items-center justify-center shrink-0 shadow-md">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
             {!sidebarCollapsed && (
               <span className="text-base font-bold text-[var(--text-primary)] whitespace-nowrap">
-                Super<span className="gradient-text-pink">Admin</span>
+                Super<span className="gradient-text">Admin</span>
               </span>
             )}
           </Link>
@@ -168,15 +186,6 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
                   sidebarCollapsed ? "justify-center px-0" : ""
                 }`}
                 title={sidebarCollapsed ? item.label : undefined}
-                style={
-                  active
-                    ? {
-                        background: "rgba(239, 68, 68, 0.08)",
-                        color: "#ef4444",
-                        borderColor: "rgba(239, 68, 68, 0.15)",
-                      }
-                    : {}
-                }
               >
                 <Icon className="w-[18px] h-[18px] shrink-0" />
                 {!sidebarCollapsed && <span>{item.label}</span>}
@@ -198,15 +207,6 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
                   sidebarCollapsed ? "justify-center px-0" : ""
                 } relative`}
                 title={sidebarCollapsed ? item.label : undefined}
-                style={
-                  active
-                    ? {
-                        background: "rgba(239, 68, 68, 0.08)",
-                        color: "#ef4444",
-                        borderColor: "rgba(239, 68, 68, 0.15)",
-                      }
-                    : {}
-                }
               >
                 <Icon className="w-[18px] h-[18px] shrink-0" />
                 {!sidebarCollapsed && <span>{item.label}</span>}
@@ -236,7 +236,7 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
               sidebarCollapsed ? "justify-center" : ""
             }`}
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
               {userInitial}
             </div>
             {!sidebarCollapsed && (
@@ -295,7 +295,7 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-full">
+            <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-[var(--brand-purple)] bg-[var(--brand-purple)]/10 border border-[var(--brand-purple)]/20 px-2.5 py-1 rounded-full">
               <AlertTriangle className="w-3.5 h-3.5" />
               Platform Control Center
             </div>
@@ -321,7 +321,7 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
                 onClick={() => setTopBarUserMenu(!topBarUserMenu)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-[var(--bg-glass-hover)] transition-colors"
               >
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-red-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white">
                   {userInitial}
                 </div>
                 <span className="hidden sm:inline text-sm text-[var(--text-secondary)]">
@@ -374,11 +374,11 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
           >
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-purple-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--brand-purple)] to-[var(--brand-blue)] flex items-center justify-center">
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <span className="text-base font-bold text-[var(--text-primary)]">
-                  Super<span className="gradient-text-pink">Admin</span>
+                  Super<span className="gradient-text">Admin</span>
                 </span>
               </div>
               <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-280px)]">
@@ -391,15 +391,6 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
                       href={item.href}
                       onClick={() => setMobileMenuOpen(false)}
                       className={`sidebar-link ${active ? "active" : ""}`}
-                      style={
-                        active
-                          ? {
-                              background: "rgba(239, 68, 68, 0.08)",
-                              color: "#ef4444",
-                              borderColor: "rgba(239, 68, 68, 0.15)",
-                            }
-                          : {}
-                      }
                     >
                       <Icon className="w-[18px] h-[18px]" />
                       <span>{item.label}</span>
@@ -420,15 +411,6 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
                       href={item.href}
                       onClick={() => setMobileMenuOpen(false)}
                       className={`sidebar-link ${active ? "active" : ""} relative`}
-                      style={
-                        active
-                          ? {
-                              background: "rgba(239, 68, 68, 0.08)",
-                              color: "#ef4444",
-                              borderColor: "rgba(239, 68, 68, 0.15)",
-                            }
-                          : {}
-                      }
                     >
                       <Icon className="w-[18px] h-[18px]" />
                       <span>{item.label}</span>
@@ -444,7 +426,7 @@ export default function AdminLayoutClient({ children, user }: AdminLayoutClientP
 
               <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-tertiary)]/50 border border-[var(--border-primary)]">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
                     {userInitial}
                   </div>
                   <div className="flex-grow min-w-0">

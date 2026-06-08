@@ -163,7 +163,7 @@ export default function NotificationsCenterClient({
           onClick={() => setActiveTab("unread")}
           className={`pb-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
             activeTab === "unread"
-              ? "border-red-500 text-red-400"
+              ? "border-[var(--brand-purple)] text-[var(--brand-purple)]"
               : "border-transparent text-[var(--text-secondary)] hover:text-white"
           }`}
         >
@@ -173,7 +173,7 @@ export default function NotificationsCenterClient({
           onClick={() => setActiveTab("all")}
           className={`pb-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
             activeTab === "all"
-              ? "border-red-500 text-red-400"
+              ? "border-[var(--brand-purple)] text-[var(--brand-purple)]"
               : "border-transparent text-[var(--text-secondary)] hover:text-white"
           }`}
         >
@@ -194,7 +194,7 @@ export default function NotificationsCenterClient({
               <div
                 key={n.id}
                 className={`glass-card p-4 hover:transform-none flex items-start justify-between gap-4 transition-all ${
-                  !n.isRead ? "border-l-4 border-red-500 bg-red-950/5" : "opacity-85"
+                  !n.isRead ? "border-l-4 border-[var(--brand-purple)] bg-[var(--brand-purple)]/5" : "opacity-85"
                 }`}
               >
                 <div className="flex items-start gap-3.5 min-w-0">
@@ -205,7 +205,7 @@ export default function NotificationsCenterClient({
                     <h4 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
                       {n.title}
                       {!n.isRead && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--brand-purple)] shrink-0" />
                       )}
                     </h4>
                     <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
@@ -237,7 +237,7 @@ export default function NotificationsCenterClient({
                   <button
                     onClick={() => handleDeleteNotification(n.id)}
                     disabled={isLoading}
-                    className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-red-500/10 text-[var(--text-secondary)] hover:text-red-400 transition-colors"
+                    className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--brand-purple)]/10 text-[var(--text-secondary)] hover:text-[var(--brand-purple)] transition-colors"
                     title="Dismiss Log"
                   >
                     {isLoading ? (

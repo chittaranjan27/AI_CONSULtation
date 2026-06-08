@@ -190,10 +190,10 @@ export default function TenantDetailClient({ tenantData }: TenantDetailClientPro
       {/* Header Profile */}
       <div className="glass-card p-6 hover:transform-none flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
         {/* Glow */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-red-500/5 rounded-full blur-[80px] pointer-events-none" />
+        <div className="absolute top-0 right-0 w-80 h-80 bg-[var(--brand-purple)]/5 rounded-full blur-[80px] pointer-events-none" />
 
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-red-500/10">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--brand-purple)] to-[var(--brand-blue)] flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-[var(--brand-purple)]/10">
             {tenantData.name.charAt(0).toUpperCase()}
           </div>
           <div>
@@ -328,7 +328,7 @@ export default function TenantDetailClient({ tenantData }: TenantDetailClientPro
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex items-center gap-2 pb-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
                   active
-                    ? "border-red-500 text-red-400"
+                    ? "border-[var(--brand-purple)] text-[var(--brand-purple)]"
                     : "border-transparent text-[var(--text-secondary)] hover:text-white"
                 }`}
               >

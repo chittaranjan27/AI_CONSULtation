@@ -233,8 +233,8 @@ export default async function AdminDashboardPage() {
 
       {/* Warning/Notification Banner */}
       {notifications.length > 0 && (
-        <div className="glass-card p-4 border-l-4 border-red-500 hover:transform-none bg-red-950/10 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+        <div className="glass-card p-4 border-l-4 border-[var(--brand-purple)] hover:transform-none bg-[var(--brand-purple)]/5 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-[var(--brand-purple)] shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-semibold text-[var(--text-primary)]">Pending Platform Actions</h4>
             <div className="mt-1 space-y-1.5">
@@ -247,7 +247,7 @@ export default async function AdminDashboardPage() {
           </div>
           <Link
             href="/admin/notifications"
-            className="text-xs text-red-400 hover:text-red-300 font-semibold flex items-center gap-1 shrink-0"
+            className="text-xs text-[var(--brand-purple)] hover:text-purple-300 font-semibold flex items-center gap-1 shrink-0"
           >
             Manage Alerts <ArrowRight className="w-3.5 h-3.5" />
           </Link>
@@ -292,7 +292,7 @@ export default async function AdminDashboardPage() {
           </h3>
           <Link
             href="/admin/tenants"
-            className="text-xs text-red-400 hover:text-red-300 font-semibold"
+            className="text-xs text-[var(--brand-purple)] hover:text-purple-300 font-semibold"
           >
             Manage Tenants →
           </Link>

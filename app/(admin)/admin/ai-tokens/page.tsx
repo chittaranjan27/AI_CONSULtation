@@ -150,7 +150,7 @@ export default async function AdminAITokensPage() {
           </p>
         </div>
         <div className="glass-card p-3 hover:transform-none flex items-center gap-3 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center text-pink-400">
+          <div className="w-8 h-8 rounded-lg bg-[var(--brand-pink)]/10 flex items-center justify-center text-[var(--brand-pink)]">
             <DollarSign className="w-4 h-4" />
           </div>
           <div>
