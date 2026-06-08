@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -23,6 +24,20 @@ interface HealthChartsProps {
 }
 
 export default function HealthCharts({ timelineData }: HealthChartsProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-pulse">
+        <div className="glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
+        <div className="glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* CPU & RAM Usage Chart */}

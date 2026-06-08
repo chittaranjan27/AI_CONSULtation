@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -20,6 +21,15 @@ interface TenantDetailChartProps {
 }
 
 export default function TenantDetailChart({ chartData }: TenantDetailChartProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return <div className="glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20 animate-pulse" />;
+  }
+
   return (
     <div className="glass-card p-5 hover:transform-none">
       <h3 className="text-base font-semibold text-[var(--text-primary)] mb-4">

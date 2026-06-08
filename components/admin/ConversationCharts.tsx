@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -31,6 +32,20 @@ interface ConversationChartsProps {
 const COLORS = ["#8b5cf6", "#3b82f6", "#06b6d4", "#10b981", "#f59e0b"];
 
 export default function ConversationCharts({ timelineData, channelData }: ConversationChartsProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
+        <div className="lg:col-span-2 glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
+        <div className="glass-card p-5 h-96 bg-[var(--bg-tertiary)]/20" />
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Chart 1: Chat Volume & Response Time */}
