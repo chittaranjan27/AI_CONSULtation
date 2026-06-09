@@ -429,7 +429,7 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
                           {t.status}
                         </span>
                       </td>
-                      <td className="p-4 text-center text-xs">
+                      <td className="p-4 text-center text-xs" suppressHydrationWarning>
                         {new Date(t.createdAt).toLocaleDateString()}
                       </td>
                       <td className="p-4 text-right">

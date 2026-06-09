@@ -203,7 +203,7 @@ export default function TenantDetailClient({ tenantData }: TenantDetailClientPro
                 {tenantData.slug}
               </span>
               <span>•</span>
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1" suppressHydrationWarning>
                 <Calendar className="w-3.5 h-3.5" />
                 Joined {new Date(tenantData.createdAt).toLocaleDateString()}
               </span>
@@ -379,7 +379,7 @@ export default function TenantDetailClient({ tenantData }: TenantDetailClientPro
                               {user.isActive ? "Active" : "Deactivated"}
                             </span>
                           </td>
-                          <td className="py-3 text-right text-xs">
+                          <td className="py-3 text-right text-xs" suppressHydrationWarning>
                             {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "Never"}
                           </td>
                         </tr>
@@ -433,7 +433,7 @@ export default function TenantDetailClient({ tenantData }: TenantDetailClientPro
                               {bot.status}
                             </span>
                           </td>
-                          <td className="py-3 text-right text-xs">
+                          <td className="py-3 text-right text-xs" suppressHydrationWarning>
                             {new Date(bot.createdAt).toLocaleDateString()}
                           </td>
                         </tr>
@@ -502,7 +502,7 @@ export default function TenantDetailClient({ tenantData }: TenantDetailClientPro
                               {lead.status}
                             </span>
                           </td>
-                          <td className="py-3 text-right text-xs">
+                          <td className="py-3 text-right text-xs" suppressHydrationWarning>
                             {new Date(lead.createdAt).toLocaleString()}
                           </td>
                         </tr>
@@ -558,7 +558,7 @@ export default function TenantDetailClient({ tenantData }: TenantDetailClientPro
                   <div className="space-y-4">
                     <div className="flex justify-between items-center pb-2 border-b border-[var(--border-primary)]">
                       <span className="text-sm text-[var(--text-secondary)]">Period Started</span>
-                      <span className="text-sm text-[var(--text-primary)]">
+                      <span className="text-sm text-[var(--text-primary)]" suppressHydrationWarning>
                         {tenantData.subscription.currentPeriodStart
                           ? new Date(tenantData.subscription.currentPeriodStart).toLocaleDateString()
                           : "N/A"}
@@ -567,7 +567,7 @@ export default function TenantDetailClient({ tenantData }: TenantDetailClientPro
 
                     <div className="flex justify-between items-center pb-2 border-b border-[var(--border-primary)]">
                       <span className="text-sm text-[var(--text-secondary)]">Period Ending / Renewal</span>
-                      <span className="text-sm text-[var(--text-primary)]">
+                      <span className="text-sm text-[var(--text-primary)]" suppressHydrationWarning>
                         {tenantData.subscription.currentPeriodEnd
                           ? new Date(tenantData.subscription.currentPeriodEnd).toLocaleDateString()
                           : "N/A"}
@@ -576,7 +576,7 @@ export default function TenantDetailClient({ tenantData }: TenantDetailClientPro
 
                     <div className="flex justify-between items-center pb-2 border-b border-[var(--border-primary)]">
                       <span className="text-sm text-[var(--text-secondary)]">Trial Ends At</span>
-                      <span className="text-sm text-[var(--text-primary)]">
+                      <span className="text-sm text-[var(--text-primary)]" suppressHydrationWarning>
                         {tenantData.subscription.trialEndsAt
                           ? new Date(tenantData.subscription.trialEndsAt).toLocaleDateString()
                           : "None"}

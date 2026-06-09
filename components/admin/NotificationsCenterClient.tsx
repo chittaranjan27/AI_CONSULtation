@@ -211,7 +211,7 @@ export default function NotificationsCenterClient({
                     <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
                       {n.message}
                     </p>
-                    <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] mt-2">
+                    <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] mt-2" suppressHydrationWarning>
                       <Clock className="w-3.5 h-3.5" />
                       {new Date(n.createdAt).toLocaleString()}
                     </div>

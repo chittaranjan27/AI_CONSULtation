@@ -421,10 +421,10 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
                           {u.isActive ? "Active" : "Inactive"}
                         </span>
                       </td>
-                      <td className="p-4 text-center text-xs">
+                      <td className="p-4 text-center text-xs" suppressHydrationWarning>
                         {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : "Never"}
                       </td>
-                      <td className="p-4 text-center text-xs">
+                      <td className="p-4 text-center text-xs" suppressHydrationWarning>
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
                       <td className="p-4 text-right">
