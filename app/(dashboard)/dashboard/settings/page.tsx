@@ -137,6 +137,19 @@ export default function SettingsPage() {
     setSuccessMsg(null);
 
     const loadData = async () => {
+      // Direct access RBAC validation
+      if (currentUser) {
+        const role = currentUser.role;
+        if (activeSection === "api-keys" && role !== "TENANT_OWNER" && role !== "SUPER_ADMIN") {
+          setActiveSection(null);
+          return;
+        }
+        if ((activeSection === "team" || activeSection === "workspace") && role !== "TENANT_OWNER" && role !== "MANAGER" && role !== "SUPER_ADMIN") {
+          setActiveSection(null);
+          return;
+        }
+      }
+
       setLoading(true);
       try {
         if (activeSection === "team") {
@@ -580,6 +593,18 @@ export default function SettingsPage() {
     { key: "appearance", label: "Appearance", desc: "Customize dashboard layout theme and interface styles", icon: Palette },
   ] as const;
 
+  const filteredMenuSections = menuSections.filter((section) => {
+    if (!currentUser) return true;
+    const role = currentUser.role;
+    if (role === "SUPPORT_AGENT" || role === "ANALYST") {
+      return section.key === "profile" || section.key === "security";
+    }
+    if (role === "MANAGER") {
+      return section.key !== "api-keys";
+    }
+    return true;
+  });
+
   // Render Header Info
   const renderHeader = (title: string, desc: string) => (
     <div className="flex items-center justify-between border-b border-[var(--border-primary)] pb-5 mb-6">
@@ -625,7 +650,7 @@ export default function SettingsPage() {
             <p className="text-base text-[var(--text-secondary)] mt-1.5">Manage your user profile, workspace preferences, and external integrations.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-6">
-            {menuSections.map((section) => {
+            {filteredMenuSections.map((section) => {
               const Icon = section.icon;
               return (
                 <div

@@ -20,6 +20,11 @@ export default async function KnowledgeBasePage() {
     redirect("/login");
   }
 
+  const role = session.user.role;
+  if (role !== "SUPER_ADMIN" && role !== "TENANT_OWNER" && role !== "MANAGER") {
+    redirect("/dashboard");
+  }
+
   const tenantId = session.user.tenantId;
 
   // Fetch real knowledge base metrics, documents, and chatbots in parallel

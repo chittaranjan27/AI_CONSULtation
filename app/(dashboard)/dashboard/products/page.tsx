@@ -73,8 +73,25 @@ export default function ProductsPage() {
   };
 
   useEffect(() => {
-    fetchProducts();
-    fetchChatbots();
+    const checkAuthAndLoad = async () => {
+      try {
+        const authRes = await fetch("/api/auth/me");
+        if (!authRes.ok) {
+          window.location.href = "/login";
+          return;
+        }
+        const user = await authRes.json();
+        if (user.role !== "SUPER_ADMIN" && user.role !== "TENANT_OWNER" && user.role !== "MANAGER") {
+          window.location.href = "/dashboard";
+          return;
+        }
+        await fetchProducts();
+        await fetchChatbots();
+      } catch (error) {
+        console.error("Auth check failed:", error);
+      }
+    };
+    checkAuthAndLoad();
   }, []);
 
   // Open modal for creating new product

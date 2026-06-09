@@ -41,6 +41,11 @@ export async function PATCH(req: Request) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
+    const role = session.user.role;
+    if (role !== "SUPER_ADMIN" && role !== "TENANT_OWNER" && role !== "MANAGER") {
+      return new NextResponse("Forbidden: Insufficient permissions", { status: 403 });
+    }
+
     const body = await req.json();
     const { name, logo, branding, settings } = body;
 

@@ -68,8 +68,10 @@ export default function DashboardLayout({
 
   // Real user session state
   const [currentUser, setCurrentUser] = useState<{
+    id: string;
     name: string;
     email: string;
+    role: string;
     tenantPlan: string;
     tenantName?: string;
     isImpersonating?: boolean;
@@ -123,6 +125,19 @@ export default function DashboardLayout({
   const userEmail = currentUser?.email || "";
   const userPlan = currentUser?.tenantPlan || "FREE";
   const userInitial = userName.charAt(0).toUpperCase();
+
+  const filteredMainNav = mainNav.filter((item) => {
+    if (!currentUser) return true; // Show all while loading to prevent layout shifts
+    const role = currentUser.role;
+    if (role === "SUPPORT_AGENT" || role === "ANALYST") {
+      return (
+        item.href !== "/dashboard/chatbots" &&
+        item.href !== "/dashboard/knowledge-base" &&
+        item.href !== "/dashboard/integrations"
+      );
+    }
+    return true;
+  });
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -190,7 +205,7 @@ export default function DashboardLayout({
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
           <div className="space-y-1">
-            {mainNav.map((item) => {
+            {filteredMainNav.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
               return (
@@ -437,7 +452,7 @@ export default function DashboardLayout({
                 </span>
               </div>
               <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-280px)]">
-                {mainNav.map((item) => {
+                {filteredMainNav.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.href);
                   return (

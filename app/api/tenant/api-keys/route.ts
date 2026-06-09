@@ -9,6 +9,11 @@ export async function GET() {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
+    const role = session.user.role;
+    if (role !== "SUPER_ADMIN" && role !== "TENANT_OWNER") {
+      return new NextResponse("Forbidden: Insufficient permissions", { status: 403 });
+    }
+
     const keys = await prisma.tenantApiKey.findMany({
       where: { tenantId: session.user.tenantId },
       select: {
@@ -43,6 +48,11 @@ export async function POST(req: Request) {
     const session = await auth();
     if (!session?.user?.tenantId) {
       return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const role = session.user.role;
+    if (role !== "SUPER_ADMIN" && role !== "TENANT_OWNER") {
+      return new NextResponse("Forbidden: Insufficient permissions", { status: 403 });
     }
 
     const body = await req.json();
@@ -90,6 +100,11 @@ export async function DELETE(req: Request) {
     const session = await auth();
     if (!session?.user?.tenantId) {
       return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const role = session.user.role;
+    if (role !== "SUPER_ADMIN" && role !== "TENANT_OWNER") {
+      return new NextResponse("Forbidden: Insufficient permissions", { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
