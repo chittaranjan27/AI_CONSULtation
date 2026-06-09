@@ -19,9 +19,12 @@ import {
   EyeOff,
   Trash2,
   Lock,
+  Users,
+  UserPlus,
+  Mail,
 } from "lucide-react";
 
-type SettingsSection = "profile" | "workspace" | "api-keys" | "security" | "notifications" | "languages" | "appearance";
+type SettingsSection = "profile" | "workspace" | "api-keys" | "security" | "notifications" | "languages" | "appearance" | "team";
 
 interface ApiKeyData {
   id: string;
@@ -82,6 +85,51 @@ export default function SettingsPage() {
   const [accentColor, setAccentColor] = useState("purple");
   const [uiScale, setUiScale] = useState("default");
 
+  // Team states
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("SUPPORT_AGENT");
+  const [isInviting, setIsInviting] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Load current user profile on page mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch("/api/tenant/profile");
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUser(data);
+        }
+      } catch (err) {
+        console.error("Failed to load user profile:", err);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const fetchTeamData = async () => {
+    try {
+      const [membersRes, invitesRes] = await Promise.all([
+        fetch("/api/tenant/team"),
+        fetch("/api/tenant/invitations"),
+      ]);
+      if (membersRes.ok) {
+        const membersData = await membersRes.json();
+        setTeamMembers(membersData);
+      }
+      if (invitesRes.ok) {
+        const invitesData = await invitesRes.json();
+        setPendingInvites(invitesData);
+      }
+    } catch (err) {
+      console.error("Failed to fetch team data:", err);
+      setErrorMsg("Failed to load workspace team records.");
+    }
+  };
+
   // Fetch initial data based on active section
   useEffect(() => {
     if (!activeSection) return;
@@ -91,7 +139,9 @@ export default function SettingsPage() {
     const loadData = async () => {
       setLoading(true);
       try {
-        if (activeSection === "profile" || activeSection === "security") {
+        if (activeSection === "team") {
+          await fetchTeamData();
+        } else if (activeSection === "profile" || activeSection === "security") {
           const res = await fetch("/api/tenant/profile");
           if (res.ok) {
             const data = await res.json();
@@ -397,9 +447,132 @@ export default function SettingsPage() {
     }
   };
 
+  // Team handlers
+  const handleSendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim()) return;
+    setIsInviting(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch("/api/tenant/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessMsg("Invitation sent successfully!");
+        setInviteEmail("");
+        await fetchTeamData();
+      } else {
+        setErrorMsg(data.error || "Failed to send invitation.");
+      }
+    } catch {
+      setErrorMsg("Failed to connect to invitation server.");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    if (!confirm("Are you sure you want to revoke this invitation?")) return;
+    setActionLoadingId(inviteId);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch(`/api/tenant/invitations/${inviteId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setSuccessMsg("Invitation revoked successfully.");
+        await fetchTeamData();
+      } else {
+        const data = await res.json();
+        setErrorMsg(data.error || "Failed to revoke invitation.");
+      }
+    } catch {
+      setErrorMsg("Failed to connect to server.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleUpdateMemberRole = async (userId: string, newRole: string) => {
+    setActionLoadingId(userId);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch("/api/tenant/team", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role: newRole }),
+      });
+      if (res.ok) {
+        setSuccessMsg("User role updated successfully.");
+        await fetchTeamData();
+      } else {
+        const data = await res.json();
+        setErrorMsg(data.error || "Failed to update member role.");
+      }
+    } catch {
+      setErrorMsg("Connection error.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleToggleMemberStatus = async (userId: string, currentActive: boolean) => {
+    setActionLoadingId(userId);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch("/api/tenant/team", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, isActive: !currentActive }),
+      });
+      if (res.ok) {
+        setSuccessMsg(`User account ${!currentActive ? "activated" : "deactivated"} successfully.`);
+        await fetchTeamData();
+      } else {
+        const data = await res.json();
+        setErrorMsg(data.error || "Failed to toggle status.");
+      }
+    } catch {
+      setErrorMsg("Connection error.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteMember = async (userId: string, name: string) => {
+    if (!confirm(`Are you sure you want to remove ${name} from this workspace?`)) return;
+    setActionLoadingId(userId);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch(`/api/tenant/team?userId=${userId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setSuccessMsg("Team member removed successfully.");
+        await fetchTeamData();
+      } else {
+        const data = await res.json();
+        setErrorMsg(data.error || "Failed to remove member.");
+      }
+    } catch {
+      setErrorMsg("Connection error.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const menuSections = [
     { key: "profile", label: "Profile", desc: "Update your name, email, and personal information", icon: User },
     { key: "workspace", label: "Workspace", desc: "Customize workspace name, URL slug, and plan features", icon: Building2 },
+    { key: "team", label: "Team", desc: "Invite colleagues and configure workspace roles & access", icon: Users },
     { key: "api-keys", label: "API Keys", desc: "Configure and manage secure LLM provider API credentials", icon: Key },
     { key: "security", label: "Security", desc: "Reset account passwords and configure login credentials", icon: Shield },
     { key: "notifications", label: "Notifications", desc: "Manage alerts, daily digests, and token warnings", icon: Bell },
@@ -911,6 +1084,234 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 </form>
+              )}
+
+              {/* Team Management section */}
+              {activeSection === "team" && (
+                <div className="space-y-8">
+                  {renderHeader("Team Management", "Invite teammates, manage roles, and control active user permissions.")}
+
+                  {/* Invite Member Section */}
+                  {currentUser && (currentUser.role === "TENANT_OWNER" || currentUser.role === "MANAGER") ? (
+                    <div className="p-5 rounded-xl bg-purple-500/5 border border-purple-500/10 space-y-4">
+                      <div>
+                        <h3 className="text-sm font-bold text-[var(--text-primary)]">Invite New Member</h3>
+                        <p className="text-xs text-[var(--text-tertiary)]">Send an invite email to add someone to this workspace.</p>
+                      </div>
+                      <form onSubmit={handleSendInvite} className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
+                          <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
+                          <input
+                            type="email"
+                            required
+                            value={inviteEmail}
+                            onChange={(e) => setInviteEmail(e.target.value)}
+                            placeholder="teammate@company.com"
+                            className="input-field !pl-10 !py-2.5 text-xs text-[var(--text-primary)]"
+                          />
+                        </div>
+                        <div className="w-full sm:w-44">
+                          <select
+                            value={inviteRole}
+                            onChange={(e) => setInviteRole(e.target.value)}
+                            className="input-field !py-2.5 text-xs cursor-pointer"
+                          >
+                            <option value="SUPPORT_AGENT">Support Agent</option>
+                            <option value="ANALYST">Analyst</option>
+                            <option value="MANAGER">Manager</option>
+                            {currentUser.role === "TENANT_OWNER" && (
+                              <option value="TENANT_OWNER">Tenant Owner</option>
+                            )}
+                          </select>
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={isInviting || !inviteEmail.trim()}
+                          className="btn-primary flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-xs"
+                        >
+                          {isInviting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <UserPlus className="w-4 h-4" />
+                              Send Invite
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    </div>
+                  ) : (
+                    <div className="p-4.5 rounded-xl bg-amber-500/5 border border-amber-500/10 text-amber-400 text-xs flex items-center gap-2">
+                      <Shield className="w-4 h-4 shrink-0" />
+                      Only managers and owners can invite new team members.
+                    </div>
+                  )}
+
+                  {/* Pending Invitations */}
+                  {pendingInvites.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Pending Invitations ({pendingInvites.length})</h3>
+                      <div className="glass-card p-0 hover:transform-none overflow-hidden border border-[var(--border-primary)]">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)]/30 text-[var(--text-tertiary)]">
+                                <th className="p-3.5 font-semibold">Email</th>
+                                <th className="p-3.5 font-semibold">Assigned Role</th>
+                                <th className="p-3.5 font-semibold">Expires</th>
+                                <th className="p-3.5 font-semibold text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--border-primary)] text-[var(--text-secondary)]">
+                              {pendingInvites.map((invite) => {
+                                const isActionLoading = actionLoadingId === invite.id;
+                                return (
+                                  <tr key={invite.id} className="hover:bg-[var(--bg-tertiary)]/10">
+                                    <td className="p-3.5 font-medium text-[var(--text-primary)]">{invite.email}</td>
+                                    <td className="p-3.5">
+                                      <span className="badge badge-purple text-[9px] uppercase font-bold">
+                                        {invite.role.replace("_", " ")}
+                                      </span>
+                                    </td>
+                                    <td className="p-3.5 text-[var(--text-tertiary)]">
+                                      {new Date(invite.expiresAt).toLocaleDateString()}
+                                    </td>
+                                    <td className="p-3.5 text-right">
+                                      <button
+                                        type="button"
+                                        disabled={isActionLoading}
+                                        onClick={() => handleRevokeInvite(invite.id)}
+                                        className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors cursor-pointer"
+                                        title="Revoke invitation"
+                                      >
+                                        {isActionLoading ? (
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        )}
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Active Team Members */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">Active Members ({teamMembers.length})</h3>
+                    <div className="glass-card p-0 hover:transform-none overflow-hidden border border-[var(--border-primary)]">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)]/30 text-[var(--text-tertiary)]">
+                              <th className="p-3.5 font-semibold">User</th>
+                              <th className="p-3.5 font-semibold">Email</th>
+                              <th className="p-3.5 font-semibold">Role</th>
+                              <th className="p-3.5 font-semibold text-center">Status</th>
+                              <th className="p-3.5 font-semibold text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[var(--border-primary)] text-[var(--text-secondary)]">
+                            {teamMembers.map((member) => {
+                              const isActionLoading = actionLoadingId === member.id;
+                              const isSelf = currentUser && currentUser.id === member.id;
+                              
+                              // Check editing permissions
+                              // Managers cannot edit Owners or other Managers.
+                              const isEditable = currentUser && (
+                                currentUser.role === "SUPER_ADMIN" ||
+                                currentUser.role === "TENANT_OWNER" ||
+                                (currentUser.role === "MANAGER" && member.role !== "TENANT_OWNER" && member.role !== "MANAGER")
+                              ) && !isSelf;
+
+                              return (
+                                <tr key={member.id} className="hover:bg-[var(--bg-tertiary)]/10">
+                                  <td className="p-3.5 font-medium text-[var(--text-primary)]">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/10 flex items-center justify-center text-[10px] font-bold text-[var(--brand-purple)]">
+                                        {(member.name || member.email).charAt(0).toUpperCase()}
+                                      </div>
+                                      <span>
+                                        {member.name || "Unnamed"} {isSelf && <span className="text-[10px] text-[var(--text-muted)] font-normal">(You)</span>}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3.5 font-mono text-[10px] text-[var(--text-tertiary)]">{member.email}</td>
+                                  <td className="p-3.5">
+                                    {isEditable ? (
+                                      <select
+                                        value={member.role}
+                                        disabled={isActionLoading}
+                                        onChange={(e) => handleUpdateMemberRole(member.id, e.target.value)}
+                                        className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded px-1.5 py-0.5 text-xs text-[var(--text-primary)] outline-none cursor-pointer"
+                                      >
+                                        <option value="SUPPORT_AGENT">Support Agent</option>
+                                        <option value="ANALYST">Analyst</option>
+                                        <option value="MANAGER">Manager</option>
+                                        {currentUser.role === "TENANT_OWNER" && (
+                                          <option value="TENANT_OWNER">Tenant Owner</option>
+                                        )}
+                                      </select>
+                                    ) : (
+                                      <span className="badge badge-purple text-[9px] uppercase font-bold">
+                                        {member.role.replace("_", " ")}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3.5 text-center">
+                                    {isEditable ? (
+                                      <button
+                                        type="button"
+                                        disabled={isActionLoading}
+                                        onClick={() => handleToggleMemberStatus(member.id, member.isActive)}
+                                        className={`badge text-[9px] uppercase font-bold cursor-pointer transition-all hover:opacity-80 ${
+                                          member.isActive ? "badge-emerald" : "badge-amber"
+                                        }`}
+                                        title={member.isActive ? "Deactivate User" : "Activate User"}
+                                      >
+                                        {member.isActive ? "Active" : "Inactive"}
+                                      </button>
+                                    ) : (
+                                      <span className={`badge text-[9px] uppercase font-bold ${
+                                        member.isActive ? "badge-emerald" : "badge-amber"
+                                      }`}>
+                                        {member.isActive ? "Active" : "Inactive"}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3.5 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      {isEditable && (
+                                        <button
+                                          type="button"
+                                          disabled={isActionLoading}
+                                          onClick={() => handleDeleteMember(member.id, member.name || member.email)}
+                                          className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors cursor-pointer"
+                                          title="Remove team member"
+                                        >
+                                          {isActionLoading ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          ) : (
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
             </>
           )}
