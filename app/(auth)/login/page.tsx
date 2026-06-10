@@ -145,6 +145,7 @@ export default function LoginPage() {
                   placeholder="you@company.com"
                   className="input-field !pl-10"
                   required
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -160,6 +161,7 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   className="input-field !pl-10 !pr-10"
                   required
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
