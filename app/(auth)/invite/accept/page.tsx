@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,7 +16,7 @@ import {
   Shield,
 } from "lucide-react";
 
-export default function AcceptInvitePage() {
+function AcceptInviteForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -299,5 +299,19 @@ export default function AcceptInvitePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex bg-[var(--bg-primary)] items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-mesh" />
+        <div className="absolute inset-0 dot-pattern opacity-25" />
+        <Loader2 className="w-10 h-10 text-[var(--brand-purple)] animate-spin relative z-10" />
+      </div>
+    }>
+      <AcceptInviteForm />
+    </Suspense>
   );
 }
