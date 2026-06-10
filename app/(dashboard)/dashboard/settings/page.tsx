@@ -1145,7 +1145,7 @@ export default function SettingsPage() {
                             <option value="ANALYST">Analyst</option>
                             <option value="MANAGER">Manager</option>
                             {currentUser.role === "TENANT_OWNER" && (
-                              <option value="TENANT_OWNER">Tenant Owner</option>
+                              <option value="TENANT_OWNER">Site Owner</option>
                             )}
                           </select>
                         </div>
@@ -1195,7 +1195,7 @@ export default function SettingsPage() {
                                     <td className="p-3.5 font-medium text-[var(--text-primary)]">{invite.email}</td>
                                     <td className="p-3.5">
                                       <span className="badge badge-purple text-[9px] uppercase font-bold">
-                                        {invite.role.replace("_", " ")}
+                                        {invite.role === "TENANT_OWNER" ? "Site Owner" : invite.role.replace("_", " ")}
                                       </span>
                                     </td>
                                     <td className="p-3.5 text-[var(--text-tertiary)]">
@@ -1279,12 +1279,12 @@ export default function SettingsPage() {
                                         <option value="ANALYST">Analyst</option>
                                         <option value="MANAGER">Manager</option>
                                         {currentUser.role === "TENANT_OWNER" && (
-                                          <option value="TENANT_OWNER">Tenant Owner</option>
+                                          <option value="TENANT_OWNER">Site Owner</option>
                                         )}
                                       </select>
                                     ) : (
                                       <span className="badge badge-purple text-[9px] uppercase font-bold">
-                                        {member.role.replace("_", " ")}
+                                        {member.role === "TENANT_OWNER" ? "Site Owner" : member.role.replace("_", " ")}
                                       </span>
                                     )}
                                   </td>

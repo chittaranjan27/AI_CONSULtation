@@ -167,13 +167,15 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const inviteUrl = `${appUrl}/invite/accept?token=${token}`;
 
-    const mailText = `You have been invited to join the ${tenantName} workspace on Brahma Graha as a ${role.replace("_", " ")}.\n\nClick the link below to accept the invitation and set up your account:\n${inviteUrl}\n\nThis invitation link is valid for 7 days.`;
+    const displayRole = role === "TENANT_OWNER" ? "Site Owner" : role.replace("_", " ");
+
+    const mailText = `You have been invited to join the ${tenantName} workspace on Brahma Graha as a ${displayRole}.\n\nClick the link below to accept the invitation and set up your account:\n${inviteUrl}\n\nThis invitation link is valid for 7 days.`;
     const mailHtml = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; rounded: 8px;">
         <h2 style="color: #6b21a8; text-align: center;">Welcome to Brahma Graha</h2>
         <p>Hello,</p>
         <p>You have been invited to join the <strong>${tenantName}</strong> workspace on the Brahma Graha AI Consultation & Lead Conversion platform.</p>
-        <p><strong>Role assigned:</strong> <span style="background-color: #f3e8ff; color: #6b21a8; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 13px;">${role.replace("_", " ")}</span></p>
+        <p><strong>Role assigned:</strong> <span style="background-color: #f3e8ff; color: #6b21a8; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 13px;">${displayRole}</span></p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${inviteUrl}" style="background-color: #6b21a8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Accept Invitation</a>
         </div>

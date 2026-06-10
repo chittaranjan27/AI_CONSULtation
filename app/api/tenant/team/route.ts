@@ -73,7 +73,7 @@ export async function PATCH(req: NextRequest) {
 
     // 2. Managers cannot modify Owners
     if (targetUser.role === "TENANT_OWNER" && currentUserRole !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Only Super Admins can modify the Tenant Owner" }, { status: 403 });
+      return NextResponse.json({ error: "Only Super Admins can modify the Site Owner" }, { status: 403 });
     }
 
     // 3. Managers cannot demote other Managers or promote to Owner
@@ -161,7 +161,7 @@ export async function DELETE(req: NextRequest) {
 
     // 2. Managers cannot delete Owners
     if (targetUser.role === "TENANT_OWNER" && currentUserRole !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Only Super Admins can remove the Tenant Owner" }, { status: 403 });
+      return NextResponse.json({ error: "Only Super Admins can remove the Site Owner" }, { status: 403 });
     }
 
     // 3. Managers cannot delete other Managers

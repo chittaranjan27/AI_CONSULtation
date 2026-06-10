@@ -184,7 +184,7 @@ function AcceptInviteForm() {
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-[var(--text-tertiary)]">Your Role:</span>
                     <span className="badge badge-purple text-[9px] uppercase font-bold">
-                      {inviteDetails.role.replace("_", " ")}
+                      {inviteDetails.role === "TENANT_OWNER" ? "Site Owner" : inviteDetails.role.replace("_", " ")}
                     </span>
                   </div>
                 </div>

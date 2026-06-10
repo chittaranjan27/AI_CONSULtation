@@ -302,7 +302,7 @@ export default async function AdminDashboardPage() {
             <thead>
               <tr className="border-b border-[var(--border-primary)] text-[var(--text-tertiary)]">
                 <th className="py-2.5 font-semibold">Company Name</th>
-                <th className="py-2.5 font-semibold">Tenant Owner</th>
+                <th className="py-2.5 font-semibold">Site Owner</th>
                 <th className="py-2.5 font-semibold">Plan</th>
                 <th className="py-2.5 font-semibold text-center">Chatbots</th>
                 <th className="py-2.5 font-semibold text-center">Leads</th>

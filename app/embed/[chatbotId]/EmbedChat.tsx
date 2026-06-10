@@ -91,6 +91,7 @@ export default function EmbedChat({
 
   const [isInlineMaximized, setIsInlineMaximized] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState(language);
+  const [languageSelected, setLanguageSelected] = useState(supportedLanguages.length <= 1);
 
   const triggerInlineMaximize = useCallback(() => {
     if (mode === "inline") {
@@ -183,6 +184,19 @@ export default function EmbedChat({
   useEffect(() => {
     trackEvent("widget_open");
   }, [trackEvent]);
+
+  const handleLanguageSelect = (langCode: string) => {
+    setSelectedLanguage(langCode);
+    setChatMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        text: getLocalizedWelcomeMessage(langCode, welcomeMessage),
+      },
+    ]);
+    setLanguageSelected(true);
+    trackEvent("language_select_initial", { language: langCode });
+  };
 
   const detectAndSyncLanguage = useCallback((text: string) => {
     if (!text) return;
@@ -1941,8 +1955,117 @@ export default function EmbedChat({
         )}
       </div>
 
+      {/* ── Language Selection Screen ── */}
+      {!languageSelected && (
+        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] p-6 relative z-10 flex flex-col justify-start sm:justify-center items-center">
+          {/* Watermark Background Overlay */}
+          {widgetConfig?.backgroundImageUrl && (
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                backgroundImage: `url(${widgetConfig.backgroundImageUrl})`,
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat",
+                backgroundSize: "cover",
+                opacity: 0.15,
+              }}
+            />
+          )}
+
+          {/* Animated Background Orbs */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ opacity: 0.3 }}>
+            <div
+              className="absolute rounded-full"
+              style={{
+                width: 200,
+                height: 200,
+                top: "15%",
+                left: "5%",
+                background: `radial-gradient(circle, ${primaryColor}15 0%, transparent 70%)`,
+                animation: "voiceFloat 8s ease-in-out infinite",
+              }}
+            />
+            <div
+              className="absolute rounded-full"
+              style={{
+                width: 180,
+                height: 180,
+                bottom: "15%",
+                right: "5%",
+                background: `radial-gradient(circle, ${primaryColor}12 0%, transparent 70%)`,
+                animation: "voiceFloat 6s ease-in-out infinite reverse",
+              }}
+            />
+          </div>
+
+          <div
+            className="w-full max-w-[300px] my-auto py-4 space-y-6 text-center z-10"
+            style={{ animation: "fadeInUp 0.4s ease-out both" }}
+          >
+            {/* Icon */}
+            <div
+              className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center"
+              style={{
+                background: `linear-gradient(135deg, ${primaryColor}18, ${primaryColor}08)`,
+                border: `1.5px solid ${primaryColor}25`,
+                boxShadow: `0 4px 20px ${primaryColor}15`,
+              }}
+            >
+              <Globe className="w-7 h-7 animate-pulse" style={{ color: primaryColor }} />
+            </div>
+
+            {/* Text */}
+            <div className="space-y-2">
+              <h2
+                className="text-lg font-bold"
+                style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
+              >
+                Choose Language / भाषा चुनें
+              </h2>
+              <p className="text-xs leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+                Please select your preferred language for the wellness consultation.
+              </p>
+            </div>
+
+            {/* Language Buttons List */}
+            <div className="space-y-2.5">
+              {ALL_SUPPORTED_LANGUAGES.filter((lang) =>
+                supportedLanguages.includes(lang.code)
+              ).map((lang, idx) => (
+                <button
+                  key={lang.code}
+                  onClick={() => handleLanguageSelect(lang.code)}
+                  className="w-full px-4 py-3 rounded-xl border text-sm font-semibold transition-all flex items-center gap-3 suggestion-btn hover:scale-[1.02] cursor-pointer group animate-[fadeInUp_0.3s_ease-out_both]"
+                  style={{
+                    borderColor: "var(--border-primary)",
+                    color: "var(--text-primary)",
+                    background: "var(--bg-secondary)",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
+                    animationDelay: `${idx * 0.08}s`,
+                  }}
+                >
+                  <span className="text-2xl shrink-0 leading-none">{lang.flag}</span>
+                  <div className="flex-grow text-left">
+                    <span className="block text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                      {lang.nativeName}
+                    </span>
+                    <span className="block text-[10px] font-normal" style={{ color: "var(--text-muted)" }}>
+                      {lang.name}
+                    </span>
+                  </div>
+                  <ArrowRight
+                    className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-all shrink-0 translate-x-[-4px] group-hover:translate-x-0"
+                    style={{ color: primaryColor }}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Lead Capture Form ── */}
-      {!leadCaptured && (
+      {languageSelected && !leadCaptured && (
         <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] p-6 relative z-10 flex flex-col justify-start sm:justify-center items-center">
           {/* Watermark Background Overlay */}
           {widgetConfig?.backgroundImageUrl && (
@@ -2119,7 +2242,7 @@ export default function EmbedChat({
       )}
 
       {/* ── Voice Assistant Mode ── */}
-      {leadCaptured && isVoiceMode && voiceSessionEnded && (
+      {languageSelected && leadCaptured && isVoiceMode && voiceSessionEnded && (
         <>
           <div
             className="flex-1 flex flex-col items-center justify-center relative overflow-hidden"
@@ -2262,7 +2385,7 @@ export default function EmbedChat({
       )}
 
       {/* ── Voice Assistant Mode (Active) ── */}
-      {leadCaptured && isVoiceMode && !voiceSessionEnded && (() => {
+      {languageSelected && leadCaptured && isVoiceMode && !voiceSessionEnded && (() => {
         // Find the most recent assistant message from the chat history
         const lastAssistantMsg = [...chatMessages].reverse().find((m) => m.role === "assistant");
         const activeSuggestions = lastAssistantMsg?.suggestions || [];
@@ -2927,7 +3050,7 @@ export default function EmbedChat({
       })()}
 
       {/* ── Chat Messages ── */}
-      {leadCaptured && !isVoiceMode && (
+      {languageSelected && leadCaptured && !isVoiceMode && (
         <>
           <div className="flex-1 relative overflow-hidden flex flex-col bg-[var(--bg-primary)]">
             {/* Watermark Background Overlay */}

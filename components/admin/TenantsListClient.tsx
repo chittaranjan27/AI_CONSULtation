@@ -161,7 +161,7 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
           tenantSlug: data.slug || createForm.companyName.toLowerCase().replace(/[^a-z0-9]/g, "-"),
           email: createForm.email,
           password: createForm.password,
-          role: "Tenant Owner (Admin)"
+          role: "Site Owner (Admin)"
         });
         // Reset form & reload data
         setCreateOpen(false);

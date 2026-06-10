@@ -122,7 +122,7 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
           email: createForm.email,
           password: createForm.password,
           tenantName: selectedTenant?.name || "Unknown Workspace",
-          role: createForm.role.replace("_", " "),
+          role: createForm.role === "TENANT_OWNER" ? "Site Owner" : createForm.role.replace("_", " "),
         });
         setCreateOpen(false);
         setShowPassword(false);
@@ -333,7 +333,7 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
             >
               <option value="ALL">All Roles</option>
               <option value="SUPER_ADMIN">Super Admin</option>
-              <option value="TENANT_OWNER">Tenant Owner</option>
+              <option value="TENANT_OWNER">Site Owner</option>
               <option value="MANAGER">Manager</option>
               <option value="SUPPORT_AGENT">Support Agent</option>
               <option value="ANALYST">Analyst</option>
@@ -409,7 +409,7 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
                             u.role
                           )}`}
                         >
-                          {u.role.replace("_", " ")}
+                          {u.role === "TENANT_OWNER" ? "Site Owner" : u.role.replace("_", " ")}
                         </span>
                       </td>
                       <td className="p-4 text-center">
@@ -543,7 +543,7 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
                     className="input-field !pl-10 !py-2.5 text-sm"
                   >
                     <option value="SUPER_ADMIN">Super Admin</option>
-                    <option value="TENANT_OWNER">Tenant Owner</option>
+                    <option value="TENANT_OWNER">Site Owner</option>
                     <option value="MANAGER">Manager</option>
                     <option value="SUPPORT_AGENT">Support Agent</option>
                     <option value="ANALYST">Analyst</option>
@@ -729,7 +729,7 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
                     className="input-field !pl-10 !py-2.5 text-sm"
                     required
                   >
-                    <option value="TENANT_OWNER">Tenant Owner (Full Access)</option>
+                    <option value="TENANT_OWNER">Site Owner (Full Access)</option>
                     <option value="MANAGER">Manager</option>
                     <option value="SUPPORT_AGENT">Support Agent</option>
                     <option value="ANALYST">Analyst</option>
