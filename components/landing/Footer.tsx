@@ -45,7 +45,7 @@ export default function Footer() {
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <span className="text-lg font-bold text-[var(--text-primary)]">
-                AI<span className="gradient-text">Consultation</span>
+                AI<span className="gradient-text">Assist</span>
               </span>
             </Link>
             <p className="text-sm text-[var(--text-secondary)] max-w-xs mb-6 leading-relaxed">
@@ -90,7 +90,7 @@ export default function Footer() {
         {/* Bottom */}
         <div className="pt-8 border-t border-[var(--border-primary)] flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-[var(--text-muted)]">
-            © {new Date().getFullYear()} AI Consultation. All rights reserved.
+            © {new Date().getFullYear()} AIAssist. All rights reserved.
           </p>
           <div className="flex items-center gap-1">
             <span className="text-sm text-[var(--text-muted)]">Built with</span>

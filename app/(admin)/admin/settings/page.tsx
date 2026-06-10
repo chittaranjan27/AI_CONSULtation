@@ -19,7 +19,7 @@ export default async function AdminSettingsPage() {
   // Fallback defaults
   const defaultConfig = {
     branding: {
-      platformName: "Brahma Graha",
+      platformName: "AIAssist",
       logoUrl: "",
       primaryColor: "#8b5cf6",
       secondaryColor: "#3b82f6",
@@ -31,7 +31,7 @@ export default async function AdminSettingsPage() {
       sarvamActive: true,
     },
     emailTemplates: {
-      welcomeSubject: "Welcome to Brahma Graha!",
+      welcomeSubject: "Welcome to AIAssist!",
       welcomeBody: "Hello {{name}},\n\nYour account has been set up successfully. Access your dashboard here: {{loginUrl}}",
       alertSubject: "Security Alert: Failed Login Attempts",
       alertBody: "We detected multiple failed login attempts on your account. If this wasn't you, please secure your profile immediately.",
@@ -39,7 +39,7 @@ export default async function AdminSettingsPage() {
     notifications: {
       costSpikeThreshold: 50.0,
       tokenLimitThreshold: 90, // 90%
-      syncFailureEmail: "alerts@brahmagraha.com",
+      syncFailureEmail: "alerts@aiassist.com",
     },
   };
 

@@ -707,7 +707,7 @@ export default function SettingsPage() {
                         value={profileEmail}
                         onChange={(e) => setProfileEmail(e.target.value)}
                         className="input-field"
-                        placeholder="admin@brahmagraha.ai"
+                        placeholder="admin@aiassist.ai"
                       />
                     </div>
                   </div>

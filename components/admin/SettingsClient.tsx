@@ -159,7 +159,7 @@ export default function SettingsClient({ initialConfig }: SettingsClientProps) {
                       value={config.branding.platformName}
                       onChange={(e) => handleTextChange("branding", "platformName", e.target.value)}
                       className="input-field !py-2 text-sm"
-                      placeholder="e.g. Brahma Graha"
+                      placeholder="e.g. AIAssist"
                       required
                     />
                   </div>
@@ -348,7 +348,7 @@ export default function SettingsClient({ initialConfig }: SettingsClientProps) {
                     value={config.notifications.syncFailureEmail}
                     onChange={(e) => handleTextChange("notifications", "syncFailureEmail", e.target.value)}
                     className="input-field !py-2 text-sm"
-                    placeholder="e.g. operations@brahmagraha.com"
+                    placeholder="e.g. operations@aiassist.com"
                     required
                   />
                 </div>

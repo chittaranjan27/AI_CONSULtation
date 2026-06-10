@@ -12,7 +12,7 @@ export async function sendEmail({ to, subject, text, html }: SendEmailParams) {
   const smtpPort = process.env.SMTP_PORT;
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
-  const smtpFrom = process.env.SMTP_FROM || "Brahma Graha <no-reply@brahmagraha.ai>";
+  const smtpFrom = process.env.SMTP_FROM || "AIAssist <no-reply@aiassist.ai>";
 
   // If SMTP configuration is missing, mock to console for local development
   if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {

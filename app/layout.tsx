@@ -11,11 +11,16 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "AI Consultation & Lead Conversion Platform",
-    template: "%s | Brahma Graha",
+    default: "AIAssist",
+    template: "%s | AIAssist",
   },
   description:
     "Build, deploy, and scale AI-powered consultation chatbots. Capture leads, track analytics, automate workflows, and grow your business with intelligent AI assistants.",
+  icons: {
+    icon: "/image.png?v=4",
+    shortcut: "/favicon.ico?v=4",
+    apple: "/image.png?v=4",
+  },
   keywords: [
     "AI chatbot",
     "lead generation",
@@ -29,14 +34,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    siteName: "Brahma Graha",
-    title: "Brahma Graha — AI Consultation & Lead Conversion Platform",
+    siteName: "AIAssist",
+    title: "AIAssist — AI Consultation & Lead Conversion Platform",
     description:
       "Build, deploy, and scale AI-powered consultation chatbots. Capture leads, track analytics, automate workflows, and grow your business.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Brahma Graha — AI Consultation & Lead Conversion Platform",
+    title: "AIAssist — AI Consultation & Lead Conversion Platform",
     description:
       "Build, deploy, and scale AI-powered consultation chatbots. Capture leads, track analytics, automate workflows, and grow your business.",
   },

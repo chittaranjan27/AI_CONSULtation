@@ -54,7 +54,7 @@ export default function CTASection() {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="text-lg text-[var(--text-secondary)] mb-10 max-w-xl mx-auto"
             >
-              Join thousands of businesses using Brahma Graha to automate
+              Join thousands of businesses using AIAssist to automate
               consultations, capture leads, and grow revenue.
             </motion.p>
 

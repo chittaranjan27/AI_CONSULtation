@@ -1,4 +1,4 @@
-// Brahma Graha - AI Consultation & Lead Conversion SaaS
+// AIAssist - AI Consultation & Lead Conversion SaaS
 // Multi-tenant Prisma Schema
 
 generator client {

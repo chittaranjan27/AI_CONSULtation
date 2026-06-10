@@ -137,7 +137,7 @@ export default function HeroSection() {
                   </div>
                   <div className="flex-1 flex justify-center">
                     <div className="px-4 py-1 rounded-md bg-[var(--bg-tertiary)] text-xs text-[var(--text-tertiary)] font-mono">
-                      brahmagraha.ai/dashboard
+                      aiassist.ai/dashboard
                     </div>
                   </div>
                 </div>

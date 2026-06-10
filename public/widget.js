@@ -11,7 +11,7 @@
       var m = s.getAttribute("data-mode") || "floating";
       var src = s.getAttribute("src") || "";
       if (cid && src.indexOf("widget.js") !== -1) {
-        var testKey = "__BRAHMA_WIDGET_" + m.toUpperCase() + "__";
+        var testKey = "__AI_ASSIST_WIDGET_" + m.toUpperCase() + "__";
         if (!window[testKey]) {
           script = s;
           break;
@@ -36,7 +36,7 @@
   var mode = script.getAttribute("data-mode") || "floating";
 
   // Prevent double init per mode
-  var initKey = "__BRAHMA_WIDGET_" + mode.toUpperCase() + "__";
+  var initKey = "__AI_ASSIST_WIDGET_" + mode.toUpperCase() + "__";
   if (window[initKey]) return;
   window[initKey] = true;
 

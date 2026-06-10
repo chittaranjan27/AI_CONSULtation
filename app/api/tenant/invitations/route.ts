@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingUser) {
-      return NextResponse.json({ error: "A user with this email address is already registered on Brahma Graha" }, { status: 400 });
+      return NextResponse.json({ error: "A user with this email address is already registered on AIAssist" }, { status: 400 });
     }
 
     // Check if there is already an active pending invitation for this email in this tenant
@@ -169,12 +169,12 @@ export async function POST(req: NextRequest) {
 
     const displayRole = role === "TENANT_OWNER" ? "Site Owner" : role.replace("_", " ");
 
-    const mailText = `You have been invited to join the ${tenantName} workspace on Brahma Graha as a ${displayRole}.\n\nClick the link below to accept the invitation and set up your account:\n${inviteUrl}\n\nThis invitation link is valid for 7 days.`;
+    const mailText = `You have been invited to join the ${tenantName} workspace on AIAssist as a ${displayRole}.\n\nClick the link below to accept the invitation and set up your account:\n${inviteUrl}\n\nThis invitation link is valid for 7 days.`;
     const mailHtml = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; rounded: 8px;">
-        <h2 style="color: #6b21a8; text-align: center;">Welcome to Brahma Graha</h2>
+        <h2 style="color: #6b21a8; text-align: center;">Welcome to AIAssist</h2>
         <p>Hello,</p>
-        <p>You have been invited to join the <strong>${tenantName}</strong> workspace on the Brahma Graha AI Consultation & Lead Conversion platform.</p>
+        <p>You have been invited to join the <strong>${tenantName}</strong> workspace on the AIAssist AI Consultation & Lead Conversion platform.</p>
         <p><strong>Role assigned:</strong> <span style="background-color: #f3e8ff; color: #6b21a8; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 13px;">${displayRole}</span></p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${inviteUrl}" style="background-color: #6b21a8; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Accept Invitation</a>
@@ -183,13 +183,13 @@ export async function POST(req: NextRequest) {
           This link will expire in 7 days. If you were not expecting this invitation, you can safely ignore this email.
         </p>
         <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
-        <p style="color: #999; font-size: 11px; text-align: center;">Brahma Graha AI Consultation SaaS</p>
+        <p style="color: #999; font-size: 11px; text-align: center;">AIAssist AI Consultation SaaS</p>
       </div>
     `;
 
     await sendEmail({
       to: emailNormalized,
-      subject: `Invitation to join ${tenantName} workspace on Brahma Graha`,
+      subject: `Invitation to join ${tenantName} workspace on AIAssist`,
       text: mailText,
       html: mailHtml,
     });

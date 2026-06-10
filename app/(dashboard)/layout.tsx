@@ -196,7 +196,7 @@ export default function DashboardLayout({
             </div>
             {!sidebarCollapsed && (
               <span className="text-base font-bold text-[var(--text-primary)] whitespace-nowrap">
-                AI<span className="gradient-text">Consultation</span>
+                AI<span className="gradient-text">Assist</span>
               </span>
             )}
           </Link>
@@ -448,7 +448,7 @@ export default function DashboardLayout({
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <span className="text-base font-bold text-[var(--text-primary)]">
-                  AI<span className="gradient-text">Consultation</span>
+                  AI<span className="gradient-text">Assist</span>
                 </span>
               </div>
               <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-280px)]">

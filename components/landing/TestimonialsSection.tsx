@@ -10,7 +10,7 @@ const testimonials = [
     role: "CEO, TechFlow Solutions",
     avatar: "SJ",
     content:
-      "Brahma Graha transformed our lead generation. Our AI chatbot captures 3x more qualified leads than our old contact forms. The analytics dashboard is incredibly insightful.",
+      "AIAssist transformed our lead generation. Our AI chatbot captures 3x more qualified leads than our old contact forms. The analytics dashboard is incredibly insightful.",
     rating: 5,
   },
   {

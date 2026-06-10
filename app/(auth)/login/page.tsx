@@ -67,7 +67,7 @@ export default function LoginPage() {
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold text-[var(--text-primary)]">
-              AI<span className="gradient-text">Consultation</span>
+              AI<span className="gradient-text">Assist</span>
             </span>
           </Link>
 
@@ -113,7 +113,7 @@ export default function LoginPage() {
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <span className="text-lg font-bold text-[var(--text-primary)]">
-              AI<span className="gradient-text">Consultation</span>
+              AI<span className="gradient-text">Assist</span>
             </span>
           </Link>
 
