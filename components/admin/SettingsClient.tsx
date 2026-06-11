@@ -11,6 +11,7 @@ import {
   CheckCircle,
   Loader2,
   Lock,
+  DollarSign,
 } from "lucide-react";
 
 interface SettingsConfig {
@@ -37,6 +38,7 @@ interface SettingsConfig {
     tokenLimitThreshold: number;
     syncFailureEmail: string;
   };
+  aiPricing?: Record<string, { inputPrice: number; outputPrice: number }>;
 }
 
 interface SettingsClientProps {
@@ -46,7 +48,7 @@ interface SettingsClientProps {
 export default function SettingsClient({ initialConfig }: SettingsClientProps) {
   const router = useRouter();
   const [config, setConfig] = useState<SettingsConfig>(initialConfig);
-  const [activeTab, setActiveTab] = useState<"branding" | "ai" | "email" | "thresholds">("branding");
+  const [activeTab, setActiveTab] = useState<"branding" | "ai" | "email" | "thresholds" | "pricing">("branding");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState("");
 
@@ -68,6 +70,27 @@ export default function SettingsClient({ initialConfig }: SettingsClientProps) {
         [field]: !(prev[section] as any)[field],
       },
     }));
+  };
+
+  const handlePricingChange = (
+    modelId: string,
+    field: "inputPrice" | "outputPrice",
+    value: number
+  ) => {
+    setConfig((prev) => {
+      const currentPricing = prev.aiPricing || {};
+      const modelPricing = currentPricing[modelId] || { inputPrice: 0, outputPrice: 0 };
+      return {
+        ...prev,
+        aiPricing: {
+          ...currentPricing,
+          [modelId]: {
+            ...modelPricing,
+            [field]: value,
+          },
+        },
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -119,6 +142,7 @@ export default function SettingsClient({ initialConfig }: SettingsClientProps) {
             { id: "ai", label: "AI Provider Gateways", icon: Bot },
             { id: "email", label: "Mail Templates", icon: Mail },
             { id: "thresholds", label: "Rule Thresholds", icon: Sliders },
+            { id: "pricing", label: "AI Pricing & Markups", icon: DollarSign },
           ].map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -351,6 +375,81 @@ export default function SettingsClient({ initialConfig }: SettingsClientProps) {
                     placeholder="e.g. operations@aiassist.com"
                     required
                   />
+                </div>
+              </div>
+            )}
+
+            {activeTab === "pricing" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-base font-bold text-[var(--text-primary)]">Per Model Pricing</h3>
+                  <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                    Configure the token price for each AI model. LLM prices are in USD per 1M tokens. Voice prices are per second (STT) or per character (TTS).
+                  </p>
+                </div>
+
+                <div className="border border-[var(--border-primary)] rounded-xl overflow-hidden bg-[var(--bg-tertiary)]/5">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] font-bold uppercase tracking-wider">
+                        <th className="p-3">Model / Service</th>
+                        <th className="p-3 text-center">Input Token Price</th>
+                        <th className="p-3 text-center">Output Token Price</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border-primary)] text-[var(--text-primary)] font-medium">
+                      {[
+                        { id: "gpt-4o-mini", label: "GPT-4o Mini ($/1M tokens)" },
+                        { id: "gpt-4o", label: "GPT-4o ($/1M tokens)" },
+                        { id: "gpt-4-turbo", label: "GPT-4 Turbo ($/1M tokens)" },
+                        { id: "gpt-3.5-turbo", label: "GPT-3.5 Turbo ($/1M tokens)" },
+                        { id: "claude-sonnet-4-20250514", label: "Claude 3.5 Sonnet ($/1M tokens)" },
+                        { id: "claude-3-haiku-20240307", label: "Claude 3 Haiku ($/1M tokens)" },
+                        { id: "claude-3-opus-20240229", label: "Claude 3 Opus ($/1M tokens)" },
+                        { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash ($/1M tokens)" },
+                        { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro ($/1M tokens)" },
+                        { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash ($/1M tokens)" },
+                        { id: "llama-3.1-70b-versatile", label: "Llama 3.1 70B ($/1M tokens)" },
+                        { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B ($/1M tokens)" },
+                        { id: "mixtral-8x7b-32768", label: "Mixtral 8x7B ($/1M tokens)" },
+                        { id: "saaras:v3", label: "Sarvam Voice STT ($/sec)" },
+                        { id: "bulbul:v3", label: "Sarvam Voice TTS ($/char)" },
+                        { id: "whisper-1", label: "OpenAI Whisper STT ($/sec)" },
+                        { id: "tts-1", label: "OpenAI Voice TTS ($/char)" },
+                      ].map((model) => {
+                        const pricing = (config.aiPricing || {})[model.id] || {
+                          inputPrice: 0,
+                          outputPrice: 0,
+                        };
+                        const isVoice = model.id.includes("saaras") || model.id.includes("bulbul") || model.id.includes("whisper") || model.id.includes("tts-1");
+
+                        return (
+                          <tr key={model.id} className="hover:bg-[var(--bg-glass-hover)] transition-colors">
+                            <td className="p-3 font-semibold">{model.label}</td>
+                            <td className="p-3 text-center">
+                              <input
+                                type="number"
+                                step="any"
+                                value={pricing.inputPrice}
+                                onChange={(e) => handlePricingChange(model.id, "inputPrice", parseFloat(e.target.value) || 0)}
+                                className="w-24 input-field text-center !py-1 text-xs"
+                              />
+                            </td>
+                            <td className="p-3 text-center">
+                              <input
+                                type="number"
+                                step="any"
+                                disabled={isVoice}
+                                value={isVoice ? 0 : pricing.outputPrice}
+                                onChange={(e) => handlePricingChange(model.id, "outputPrice", parseFloat(e.target.value) || 0)}
+                                className={`w-24 input-field text-center !py-1 text-xs ${isVoice ? "opacity-40 cursor-not-allowed" : ""}`}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

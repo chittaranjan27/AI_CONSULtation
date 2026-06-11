@@ -1,6 +1,6 @@
 import { streamText, tool, stepCountIs } from "ai";
 import { z } from "zod";
-import { getAIModel, calculateCost, type AIProviderType } from "./providers";
+import { getAIModel, calculateCost, getSystemPricingRates, type AIProviderType } from "./providers";
 import { retrieveContext } from "./rag";
 import prisma from "@/lib/db/prisma";
 import { Prisma } from "@prisma/client";
@@ -465,7 +465,8 @@ Call it alongside your farewell text response. Examples of when to call it:
         const inputTokens = usage?.inputTokens || 0;
         const outputTokens = usage?.outputTokens || 0;
         const totalTokens = inputTokens + outputTokens;
-        const cost = calculateCost(modelId, inputTokens, outputTokens);
+        const pricingRates = await getSystemPricingRates();
+        const cost = calculateCost(modelId, inputTokens, outputTokens, pricingRates);
 
         // Determine the next step dynamically from the LLM's tool calls
         let nextStep = currentStep;
@@ -575,6 +576,7 @@ Call it alongside your farewell text response. Examples of when to call it:
               totalTokens,
               requestType: "LLM",
               cost,
+              wholesaleCost: 0,
             },
           })
         );
@@ -598,6 +600,7 @@ Call it alongside your farewell text response. Examples of when to call it:
               totalTokens,
               chatCost: cost,
               totalCost: cost,
+              wholesaleCost: 0,
               avgResponseTime: latencyMs,
             },
             update: {
@@ -607,6 +610,7 @@ Call it alongside your farewell text response. Examples of when to call it:
               totalTokens: { increment: totalTokens },
               chatCost: { increment: cost },
               totalCost: { increment: cost },
+              wholesaleCost: { increment: 0 },
             },
           })
         );

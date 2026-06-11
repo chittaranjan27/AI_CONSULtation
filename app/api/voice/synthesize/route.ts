@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
 import { getChatbotTenant } from "@/lib/db/cache";
-import { VOICE_COSTS } from "@/lib/ai/providers";
+import { getSystemPricingRates, calculateVoiceCost } from "@/lib/ai/providers";
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.SARVAM_API_KEY;
@@ -146,8 +146,8 @@ async function logTTSUsage(
     if (!chatbot) return;
 
     const tenantId = chatbot.tenantId;
-    const costConfig = VOICE_COSTS[model];
-    const estimatedCost = characterCount * (costConfig?.ratePerCharacter ?? 0);
+    const pricingRates = await getSystemPricingRates();
+    const cost = calculateVoiceCost(model, characterCount, pricingRates);
 
     // Strip time from date for DailyStats date-only key
     const today = new Date();
@@ -163,7 +163,8 @@ async function logTTSUsage(
           model,
           characterCount,
           requestType: "TTS",
-          cost: estimatedCost,
+          cost,
+          wholesaleCost: 0,
         },
       }),
       prisma.dailyStats.upsert({
@@ -180,14 +181,16 @@ async function logTTSUsage(
           date: today,
           ttsRequests: 1,
           ttsCharacters: characterCount,
-          voiceCost: estimatedCost,
-          totalCost: estimatedCost,
+          voiceCost: cost,
+          totalCost: cost,
+          wholesaleCost: 0,
         },
         update: {
           ttsRequests: { increment: 1 },
           ttsCharacters: { increment: characterCount },
-          voiceCost: { increment: estimatedCost },
-          totalCost: { increment: estimatedCost },
+          voiceCost: { increment: cost },
+          totalCost: { increment: cost },
+          wholesaleCost: { increment: 0 },
         },
       }),
     ]);

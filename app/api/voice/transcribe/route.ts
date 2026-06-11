@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
 import { getChatbotTenant } from "@/lib/db/cache";
-import { VOICE_COSTS } from "@/lib/ai/providers";
+import { getSystemPricingRates, calculateVoiceCost } from "@/lib/ai/providers";
 
 // Language code mapping: short code → BCP-47 locale for Sarvam AI
 const LANGUAGE_MAP: Record<string, string> = {
@@ -152,8 +152,8 @@ async function logSTTUsage(
     if (!chatbot) return;
 
     const tenantId = chatbot.tenantId;
-    const costConfig = VOICE_COSTS[model];
-    const estimatedCost = duration * (costConfig?.ratePerSecond ?? 0);
+    const pricingRates = await getSystemPricingRates();
+    const cost = calculateVoiceCost(model, duration, pricingRates);
 
     // Strip time from date for DailyStats date-only key
     const today = new Date();
@@ -169,7 +169,8 @@ async function logSTTUsage(
           model,
           audioDuration: duration,
           requestType: "STT",
-          cost: estimatedCost,
+          cost,
+          wholesaleCost: 0,
         },
       }),
       prisma.dailyStats.upsert({
@@ -186,14 +187,16 @@ async function logSTTUsage(
           date: today,
           sttRequests: 1,
           sttDuration: duration,
-          voiceCost: estimatedCost,
-          totalCost: estimatedCost,
+          voiceCost: cost,
+          totalCost: cost,
+          wholesaleCost: 0,
         },
         update: {
           sttRequests: { increment: 1 },
           sttDuration: { increment: duration },
-          voiceCost: { increment: estimatedCost },
-          totalCost: { increment: estimatedCost },
+          voiceCost: { increment: cost },
+          totalCost: { increment: cost },
+          wholesaleCost: { increment: 0 },
         },
       }),
     ]);

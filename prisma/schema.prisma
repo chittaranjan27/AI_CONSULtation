@@ -566,6 +566,7 @@ model DailyStats {
   voiceCost       Float    @default(0)  // Cost from STT & TTS APIs
 
   totalCost       Float    @default(0)  // chatCost + voiceCost
+  wholesaleCost   Float    @default(0)  // Wholesale API costs (what platform pays)
   returningUsers  Int      @default(0)
   newUsers        Int      @default(0)
   createdAt       DateTime @default(now())
@@ -620,6 +621,7 @@ model UsageRecord {
   requestType     String?       // "STT", "TTS", or "LLM"
 
   cost            Float         @default(0)
+  wholesaleCost   Float         @default(0)
   createdAt       DateTime      @default(now())
 
   // Relations

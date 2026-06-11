@@ -2,6 +2,8 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
+import { cache } from "react";
+import prisma from "@/lib/db/prisma";
 
 export type AIProviderType = "OPENAI" | "ANTHROPIC" | "GEMINI" | "GROQ" | "OPENROUTER";
 
@@ -131,17 +133,73 @@ function resolveModelId(provider: AIProviderType, modelId?: string): string {
 }
 
 /**
+ * Retrieve dynamic pricing rates from the system settings JSON.
+ * Wrapped with React's request-level cache() to avoid duplicate DB reads.
+ */
+export const getSystemPricingRates = cache(async () => {
+  try {
+    const systemTenant = await prisma.tenant.findUnique({
+      where: { slug: "system-admin-tenant" },
+      select: { settings: true },
+    });
+    if (!systemTenant || !systemTenant.settings) return null;
+    const settings = systemTenant.settings as any;
+    return settings.aiPricing || null;
+  } catch (error) {
+    console.error("Error fetching dynamic pricing rates:", error);
+    return null;
+  }
+});
+
+/**
  * Calculate token cost for usage tracking.
+ * Returns the total cost based on configured input/output token prices.
  */
 export function calculateCost(
   modelId: string,
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
+  rates?: Record<string, { inputPrice: number; outputPrice: number }> | null
 ): number {
+  // Try dynamic database rates first (prices are per 1M tokens)
+  const customRate = rates?.[modelId];
+  if (customRate) {
+    return (inputTokens / 1_000_000) * customRate.inputPrice + (outputTokens / 1_000_000) * customRate.outputPrice;
+  }
+
+  // Fallback to static TOKEN_COSTS constants (per 1K tokens)
   const costs = TOKEN_COSTS[modelId];
   if (!costs) return 0;
 
   return (inputTokens / 1000) * costs.input + (outputTokens / 1000) * costs.output;
+}
+
+/**
+ * Calculate voice services cost (STT or TTS).
+ * Returns the total cost based on configured per-unit prices.
+ */
+export function calculateVoiceCost(
+  modelId: string,
+  units: number, // STT: seconds of audio, TTS: characters synthesized
+  rates?: Record<string, { inputPrice: number; outputPrice: number }> | null
+): number {
+  // Try dynamic database rates first (inputPrice = rate per unit)
+  const customRate = rates?.[modelId];
+  if (customRate) {
+    return units * customRate.inputPrice;
+  }
+
+  // Fallback to static VOICE_COSTS constants
+  const costs = VOICE_COSTS[modelId];
+  if (!costs) return 0;
+
+  if (costs.ratePerSecond !== undefined) {
+    return units * costs.ratePerSecond;
+  } else if (costs.ratePerCharacter !== undefined) {
+    return units * costs.ratePerCharacter;
+  }
+
+  return 0;
 }
 
 /**
