@@ -1,11 +1,8 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { Cpu, HardDrive, Database, Server, RefreshCw, AlertTriangle, ShieldCheck } from "lucide-react";
 import HealthCharts from "@/components/admin/HealthCharts";
 
 export default async function AdminHealthPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Measure actual database latency by running a query
   let dbStatus = "HEALTHY";

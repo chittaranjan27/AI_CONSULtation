@@ -1,33 +1,30 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import UsersListClient from "@/components/admin/UsersListClient";
 
 export default async function AdminUsersPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
-  // Query users from database in server component
-  const users = await prisma.user.findMany({
-    include: {
-      tenant: {
-        select: {
-          name: true,
-          slug: true,
+  // Parallelize both queries and use select to fetch only display fields
+  const [users, tenants] = await Promise.all([
+    prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+        tenant: {
+          select: { name: true, slug: true },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  // Query tenants/workspaces for user creation dropdown
-  const tenants = await prisma.tenant.findMany({
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.tenant.findMany({
+      select: { id: true, name: true, slug: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   // Format the output structure
   const formattedUsers = users.map((u) => ({

@@ -1,11 +1,8 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { MessageSquare, Clock, Smile, Sparkles, Percent, Share2 } from "lucide-react";
 import ConversationCharts from "@/components/admin/ConversationCharts";
 
 export default async function AdminConversationsPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Parallel database queries
   const [
@@ -40,12 +37,17 @@ export default async function AdminConversationsPage() {
       by: ["channel"],
       _count: { id: true },
     }),
-    // Daily Stats for last 30 days
+    // Daily Stats for last 30 days — only fetch needed chart fields
     prisma.dailyStats.findMany({
       where: {
         date: {
           gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
         },
+      },
+      select: {
+        date: true,
+        conversations: true,
+        avgResponseTime: true,
       },
       orderBy: { date: "asc" },
     }),

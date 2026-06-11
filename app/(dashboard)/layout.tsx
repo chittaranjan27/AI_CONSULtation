@@ -77,19 +77,49 @@ export default function DashboardLayout({
     isImpersonating?: boolean;
   } | null>(null);
 
-  // Fetch the real logged-in user's info
+  // Fetch user info with sessionStorage cache to avoid re-fetching on every navigation
   useEffect(() => {
+    const CACHE_KEY_USER = "dash_user_cache";
+    const CACHE_KEY_WS = "dash_ws_cache";
+    const CACHE_TTL = 5 * 60 * 1000; // 5 minute TTL
+
+    // Try to load from sessionStorage first
+    try {
+      const cachedUser = sessionStorage.getItem(CACHE_KEY_USER);
+      if (cachedUser) {
+        const { data, ts } = JSON.parse(cachedUser);
+        if (Date.now() - ts < CACHE_TTL) {
+          setCurrentUser(data);
+        }
+      }
+      const cachedWs = sessionStorage.getItem(CACHE_KEY_WS);
+      if (cachedWs) {
+        const { data, ts } = JSON.parse(cachedWs);
+        if (Date.now() - ts < CACHE_TTL) {
+          setWorkspaces(data);
+          return; // Both cached and valid, skip network requests
+        }
+      }
+    } catch { /* sessionStorage unavailable in some contexts */ }
+
+    // Fetch fresh data
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data) setCurrentUser(data);
+        if (data) {
+          setCurrentUser(data);
+          try { sessionStorage.setItem(CACHE_KEY_USER, JSON.stringify({ data, ts: Date.now() })); } catch {}
+        }
       })
       .catch(() => {});
 
     // Fetch workspaces list
     fetch("/api/auth/workspaces")
       .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setWorkspaces(data))
+      .then((data) => {
+        setWorkspaces(data);
+        try { sessionStorage.setItem(CACHE_KEY_WS, JSON.stringify({ data, ts: Date.now() })); } catch {}
+      })
       .catch(() => {});
   }, []);
 
@@ -97,6 +127,7 @@ export default function DashboardLayout({
     try {
       const res = await fetch("/api/admin/impersonate", { method: "DELETE" });
       if (res.ok) {
+        try { sessionStorage.removeItem("dash_user_cache"); sessionStorage.removeItem("dash_ws_cache"); } catch {}
         const data = await res.json();
         window.location.href = data.redirect || "/admin/tenants";
       }
@@ -113,6 +144,7 @@ export default function DashboardLayout({
         body: JSON.stringify({ tenantId }),
       });
       if (res.ok) {
+        try { sessionStorage.removeItem("dash_user_cache"); sessionStorage.removeItem("dash_ws_cache"); } catch {}
         const data = await res.json();
         window.location.href = data.redirect || "/dashboard";
       }

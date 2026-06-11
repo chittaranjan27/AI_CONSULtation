@@ -1,10 +1,7 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { Link2, RefreshCw, AlertTriangle, CheckCircle, Database, HelpCircle } from "lucide-react";
 
 export default async function AdminCRMPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Query integration counts
   const [
@@ -15,7 +12,14 @@ export default async function AdminCRMPage() {
     prisma.integration.count(),
     prisma.integration.count({ where: { isActive: true } }),
     prisma.integration.findMany({
-      include: {
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        isActive: true,
+        lastSyncAt: true,
+        createdAt: true,
+        config: true,
         tenant: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },

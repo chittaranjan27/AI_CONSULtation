@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 import prisma from "@/lib/db/prisma";
+import { cache } from "react";
 
 // ============================================
 // REAL AUTH — JWT-based session with DB lookup
@@ -10,7 +11,7 @@ import prisma from "@/lib/db/prisma";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "dev-secret-change-in-production-abc123def456";
 
-export async function auth() {
+export const auth = cache(async () => {
   const cookieStore = await cookies();
   const tokenCookie = cookieStore.get("session_token");
 
@@ -26,10 +27,21 @@ export async function auth() {
       return null;
     }
 
-    // Look up the real user + tenant from the database
+    // Look up only the fields we actually use from user + tenant
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      include: { tenant: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatar: true,
+        role: true,
+        isActive: true,
+        tenantId: true,
+        tenant: {
+          select: { id: true, name: true, slug: true, plan: true },
+        },
+      },
     });
 
     if (!user || !user.isActive) {
@@ -76,7 +88,7 @@ export async function auth() {
     // JWT expired, invalid, or DB error — treat as unauthenticated
     return null;
   }
-}
+});
 
 // Stub exports so any file importing these doesn't break
 export const handlers = { GET: () => new Response("OK"), POST: () => new Response("OK") };

@@ -1,10 +1,7 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { Sparkles, Bot, FileText, ShoppingBag, Key, Zap, CheckCircle2 } from "lucide-react";
 
 export default async function AdminProductAnalyticsPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Query database counts
   const [

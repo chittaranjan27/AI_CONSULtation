@@ -1,4 +1,3 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
 import TenantDetailClient from "@/components/admin/TenantDetailClient";
@@ -8,63 +7,62 @@ export default async function AdminTenantDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  // Enforce server-side session check
-  const session = await auth();
   const { id } = await params;
 
-  // Fetch tenant details with deep relations
-  const tenant = await prisma.tenant.findUnique({
-    where: { id },
-    include: {
-      users: {
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          isActive: true,
-          lastLoginAt: true,
-          createdAt: true,
+  // Parallelize all three queries instead of running them sequentially
+  const [tenant, usageAggregate, dailyStats] = await Promise.all([
+    // Fetch tenant details with deep relations
+    prisma.tenant.findUnique({
+      where: { id },
+      include: {
+        users: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            isActive: true,
+            lastLoginAt: true,
+            createdAt: true,
+          },
         },
-      },
-      chatbots: {
-        include: {
-          _count: {
-            select: {
-              conversations: true,
-              leads: true,
+        chatbots: {
+          include: {
+            _count: {
+              select: {
+                conversations: true,
+                leads: true,
+              },
             },
           },
         },
+        subscription: true,
+        leads: {
+          orderBy: { createdAt: "desc" },
+          take: 15,
+        },
       },
-      subscription: true,
-      leads: {
-        orderBy: { createdAt: "desc" },
-        take: 15,
+    }),
+    // Aggregate token consumption and costs
+    prisma.usageRecord.aggregate({
+      where: { tenantId: id },
+      _sum: {
+        inputTokens: true,
+        outputTokens: true,
+        totalTokens: true,
+        cost: true,
       },
-    },
-  });
+    }),
+    // Fetch daily stats for graphing
+    prisma.dailyStats.findMany({
+      where: { tenantId: id },
+      orderBy: { date: "asc" },
+    }),
+  ]);
 
   if (!tenant) {
     redirect("/admin/tenants");
   }
-
-  // Aggregate token consumption and costs
-  const usageAggregate = await prisma.usageRecord.aggregate({
-    where: { tenantId: id },
-    _sum: {
-      inputTokens: true,
-      outputTokens: true,
-      totalTokens: true,
-      cost: true,
-    },
-  });
-
-  // Fetch daily stats for graphing
-  const dailyStats = await prisma.dailyStats.findMany({
-    where: { tenantId: id },
-    orderBy: { date: "asc" },
-  });
 
   // Roll up daily stats mapping for chart
   const dailyMap = new Map<string, { date: string; conversations: number; leads: number }>();

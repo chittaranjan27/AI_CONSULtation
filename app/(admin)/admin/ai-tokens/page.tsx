@@ -1,11 +1,8 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { Cpu, MessageSquare, PhoneCall, Volume2, DollarSign } from "lucide-react";
 import AIUsageCharts from "@/components/admin/AIUsageCharts";
 
 export default async function AdminAITokensPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Parallel database aggregates
   const [
@@ -43,12 +40,19 @@ export default async function AdminAITokensPage() {
       by: ["provider"],
       _sum: { cost: true },
     }),
-    // Daily Stats for last 30 days
+    // Daily Stats for last 30 days — only fetch needed chart fields
     prisma.dailyStats.findMany({
       where: {
         date: {
           gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
         },
+      },
+      select: {
+        date: true,
+        totalTokens: true,
+        sttDuration: true,
+        ttsCharacters: true,
+        totalCost: true,
       },
       orderBy: { date: "asc" },
     }),

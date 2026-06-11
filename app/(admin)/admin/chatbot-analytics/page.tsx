@@ -1,11 +1,8 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { Bot, MessageSquare, Target, Cpu, Sparkles } from "lucide-react";
 import ChatbotAnalyticsCharts from "@/components/admin/ChatbotAnalyticsCharts";
 
 export default async function AdminChatbotAnalyticsPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Query chatbots data
   const [

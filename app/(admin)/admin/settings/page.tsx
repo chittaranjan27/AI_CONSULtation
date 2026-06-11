@@ -1,11 +1,8 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
 import SettingsClient from "@/components/admin/SettingsClient";
 
 export default async function AdminSettingsPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Retrieve admin system tenant configuration
   const systemTenant = await prisma.tenant.findUnique({

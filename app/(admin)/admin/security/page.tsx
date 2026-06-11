@@ -1,10 +1,7 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { Shield, ShieldAlert, Key, Lock, Eye, AlertTriangle } from "lucide-react";
 
 export default async function AdminSecurityPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Query audit logs and tenant API keys count
   const [
@@ -17,7 +14,13 @@ export default async function AdminSecurityPage() {
     prisma.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 15,
-      include: {
+      select: {
+        id: true,
+        action: true,
+        entity: true,
+        entityId: true,
+        metadata: true,
+        createdAt: true,
         tenant: { select: { name: true } },
       },
     }),

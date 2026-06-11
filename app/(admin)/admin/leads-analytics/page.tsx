@@ -1,4 +1,3 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { LeadStatus } from "@prisma/client";
 import {
@@ -13,8 +12,6 @@ import {
 import LeadAnalyticsClient from "@/components/admin/LeadAnalyticsClient";
 
 export default async function AdminLeadsAnalyticsPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Parallel queries
   const [
@@ -35,6 +32,10 @@ export default async function AdminLeadsAnalyticsPage() {
         date: {
           gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
         },
+      },
+      select: {
+        date: true,
+        leadsCaptured: true,
       },
       orderBy: { date: "asc" },
     }),

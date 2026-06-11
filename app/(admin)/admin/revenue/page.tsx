@@ -1,12 +1,9 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { PlanType, SubscriptionStatus } from "@prisma/client";
 import { DollarSign, ShieldCheck, TrendingUp, Users, RefreshCw, BarChart2 } from "lucide-react";
 import RevenueCharts from "@/components/admin/RevenueCharts";
 
 export default async function AdminRevenuePage() {
-  // Enforce server-side session check
-  const session = await auth();
 
   // Parallel queries
   const [
@@ -17,9 +14,10 @@ export default async function AdminRevenuePage() {
     planGroups,
     recentInvoices,
   ] = await Promise.all([
-    // Active Subscriptions
+    // Active Subscriptions — only need plan for MRR calculation
     prisma.subscription.findMany({
       where: { status: SubscriptionStatus.ACTIVE },
+      select: { plan: true },
     }),
     // Total subscriptions
     prisma.subscription.count(),

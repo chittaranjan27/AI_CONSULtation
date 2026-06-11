@@ -1,12 +1,7 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import TenantsListClient from "@/components/admin/TenantsListClient";
 
 export default async function AdminTenantsPage() {
-  // Enforce server-side session check
-  const session = await auth();
-
-  // Query tenants from database in server component
   const tenants = await prisma.tenant.findMany({
     include: {
       users: {
@@ -24,7 +19,7 @@ export default async function AdminTenantsPage() {
           leads: true,
         },
       },
-      subscription: true,
+      subscription: { select: { status: true } },
     },
     orderBy: { createdAt: "desc" },
   });

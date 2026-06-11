@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 interface Bubble {
   id: number;
@@ -41,11 +42,19 @@ function generateBubbles(count: number): Bubble[] {
 
 export default function BubbleBackground() {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  const pathname = usePathname();
+
+  // Skip bubble rendering on admin and dashboard routes to reduce GPU load
+  const isAppRoute = pathname?.startsWith("/admin") || pathname?.startsWith("/dashboard");
 
   // Generate bubbles only on mount (client-side) to avoid SSR hydration mismatches
   useEffect(() => {
-    setBubbles(generateBubbles(22));
-  }, []);
+    if (!isAppRoute) {
+      setBubbles(generateBubbles(22));
+    } else {
+      setBubbles([]);
+    }
+  }, [isAppRoute]);
 
   if (bubbles.length === 0) return null;
 

@@ -1,4 +1,3 @@
-import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { PlanType, SubscriptionStatus } from "@prisma/client";
 import {
@@ -19,10 +18,8 @@ import Link from "next/link";
 import AdminDashboardCharts from "@/components/admin/AdminDashboardCharts";
 
 export default async function AdminDashboardPage() {
-  // Enforce server-side session check
-  const session = await auth();
 
-  // Parallel database queries to prevent waterfall latencies
+  // All database queries in a single parallel batch — no waterfalls
   const [
     totalTenants,
     totalUsers,
@@ -36,6 +33,9 @@ export default async function AdminDashboardPage() {
     dailyStats,
     newTenantsRecent,
     notifications,
+    trialTenantsCount,
+    inactiveUsers,
+    totalAPIRequests,
   ] = await Promise.all([
     // Total tenants
     prisma.tenant.count(),
@@ -51,9 +51,10 @@ export default async function AdminDashboardPage() {
     prisma.usageRecord.aggregate({
       _sum: { cost: true, totalTokens: true },
     }),
-    // Subscriptions for revenue calculation
+    // Subscriptions for revenue calculation — only need plan field
     prisma.subscription.findMany({
       where: { status: "ACTIVE" },
+      select: { plan: true },
     }),
     // Grouping for plan distribution
     prisma.tenant.groupBy({
@@ -74,12 +75,19 @@ export default async function AdminDashboardPage() {
         },
       },
     }),
-    // Daily Stats for the last 30 days
+    // Daily Stats for the last 30 days — select only needed fields
     prisma.dailyStats.findMany({
       where: {
         date: {
           gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
         },
+      },
+      select: {
+        date: true,
+        conversations: true,
+        leadsCaptured: true,
+        totalCost: true,
+        voiceConversations: true,
       },
       orderBy: { date: "asc" },
     }),
@@ -92,26 +100,26 @@ export default async function AdminDashboardPage() {
       },
       select: { createdAt: true },
     }),
-    // System notifications for display
+    // System notifications for display — only need title fields
     prisma.systemNotification.findMany({
       where: { isRead: false },
       orderBy: { createdAt: "desc" },
       take: 3,
+      select: { id: true, title: true, message: true },
     }),
+    // Trial tenants count (was sequential before)
+    prisma.subscription.count({
+      where: { status: SubscriptionStatus.TRIALING },
+    }),
+    // Inactive users for suspended tenant calculation — only need grouping fields
+    prisma.user.findMany({
+      select: { tenantId: true, isActive: true },
+    }),
+    // Total API requests
+    prisma.usageRecord.count(),
   ]);
 
   // Compute Tenant Status Segmentation
-  // Suspended Tenants (all users in tenant deactivated)
-  // Trial Tenants (subscriptions that are trialing)
-  const trialTenantsCount = await prisma.subscription.count({
-    where: { status: SubscriptionStatus.TRIALING },
-  });
-
-  const inactiveUsers = await prisma.user.findMany({
-    select: { tenantId: true, isActive: true },
-  });
-
-  // Calculate suspended tenants (where all users in tenant are inactive)
   const tenantUserMap: Record<string, boolean[]> = {};
   inactiveUsers.forEach((u) => {
     if (!tenantUserMap[u.tenantId]) tenantUserMap[u.tenantId] = [];
@@ -128,14 +136,11 @@ export default async function AdminDashboardPage() {
 
   const activeTenantsCount = Math.max(0, totalTenants - suspendedTenantsCount);
 
-  // Compute Voice Consultation Metrics from DailyStats
-  const voiceConsultAggregate = await prisma.dailyStats.aggregate({
-    _sum: { voiceConversations: true },
+  // Compute voice consultations from the already-fetched dailyStats (no extra query needed)
+  let totalVoiceConsultations = 0;
+  dailyStats.forEach((ds) => {
+    totalVoiceConsultations += ds.voiceConversations || 0;
   });
-  const totalVoiceConsultations = voiceConsultAggregate._sum.voiceConversations || 0;
-
-  // Compute Total API Requests (LLM + Voice usages)
-  const totalAPIRequests = await prisma.usageRecord.count();
 
   // Compute Monthly Revenue based on Active Subscription Plans
   const planPrices = {
