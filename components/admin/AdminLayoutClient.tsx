@@ -33,16 +33,9 @@ const adminNav = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Tenants", href: "/admin/tenants", icon: Building },
   { label: "Users", href: "/admin/users", icon: Users },
-  { label: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },
-  { label: "Lead Analytics", href: "/admin/leads-analytics", icon: TrendingUp },
-  { label: "Chatbot Analytics", href: "/admin/chatbot-analytics", icon: Bot },
-  { label: "AI Usage", href: "/admin/ai-tokens", icon: Cpu },
-  { label: "Conversations", href: "/admin/conversations", icon: MessageSquare },
-  { label: "Revenue", href: "/admin/revenue", icon: DollarSign },
-  { label: "Platform Health", href: "/admin/health", icon: Activity },
-  { label: "CRM Sync", href: "/admin/crm", icon: Plug },
-  { label: "Security & Logs", href: "/admin/security", icon: Shield },
-  { label: "Product Analytics", href: "/admin/product-analytics", icon: BarChart3 },
+  { label: "Billing & Revenue", href: "/admin/billing", icon: CreditCard },
+  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
+  { label: "System Operations", href: "/admin/system-ops", icon: Activity },
 ];
 
 const bottomNav = [
