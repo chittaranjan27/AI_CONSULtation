@@ -22,6 +22,7 @@ import {
   BookOpen,
   PenTool,
   Languages,
+  Phone,
 } from "lucide-react";
 
 type VoiceState = "idle" | "recording" | "thinking" | "speaking";
@@ -2584,7 +2585,7 @@ export default function EmbedChat({
                             animation: "none",
                           }}
                         >
-                          Press the microphone button to start your personalized consultation.
+                          Press the call button to start your personalized consultation.
                         </p>
                       </div>
                     )}
@@ -2646,7 +2647,7 @@ export default function EmbedChat({
                       ) : voiceState === "speaking" ? (
                         <Volume2 className="w-8 h-8 text-white" />
                       ) : (
-                        <Mic className="w-8 h-8 text-white" />
+                        <Phone className="w-7 h-7 text-white" />
                       )}
                     </button>
                   </div>
@@ -3016,7 +3017,7 @@ export default function EmbedChat({
                                   animation: "none",
                                 }}
                               >
-                                Press the microphone button to start your personalized consultation.
+                                Press the call button to start your personalized consultation.
                               </p>
                             )}
                           </div>
@@ -3081,7 +3082,7 @@ export default function EmbedChat({
                     ) : voiceState === "speaking" ? (
                       <Volume2 className="w-5 h-5 text-white" />
                     ) : (
-                      <Mic className="w-5 h-5 text-white" />
+                      <Phone className="w-5 h-5 text-white animate-pulse" />
                     )}
                   </button>
 
