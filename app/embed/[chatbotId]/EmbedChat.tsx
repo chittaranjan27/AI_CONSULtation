@@ -2513,7 +2513,29 @@ export default function EmbedChat({
                 >
                   {/* Status Text & Indicators */}
                   <div className="text-center mb-8 flex flex-col items-center justify-center">
-                    <div className="flex items-center gap-2 mb-1.5">
+                    <div
+                      className="flex items-center gap-2 mb-1.5 px-3 py-1 rounded-full border shadow-sm transition-all duration-300"
+                      style={{
+                        background: voiceState === "recording"
+                          ? "#ef444410"
+                          : voiceState === "thinking"
+                            ? `${primaryColor}10`
+                            : voiceState === "speaking"
+                              ? "#10b98110"
+                              : voiceState === "idle"
+                                ? "rgba(34, 197, 94, 0.08)"
+                                : "var(--bg-secondary)",
+                        borderColor: voiceState === "recording"
+                          ? "#ef444420"
+                          : voiceState === "thinking"
+                            ? `${primaryColor}20`
+                            : voiceState === "speaking"
+                              ? "#10b98120"
+                              : voiceState === "idle"
+                                ? "rgba(34, 197, 94, 0.18)"
+                                : "var(--border-primary)",
+                      }}
+                    >
                       {voiceState === "recording" && (
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -2527,7 +2549,7 @@ export default function EmbedChat({
                         <Volume2 className="w-3.5 h-3.5 animate-pulse text-emerald-500" />
                       )}
                       <p
-                        className="text-xs font-bold uppercase tracking-[0.15em]"
+                        className="text-xs font-black uppercase tracking-[0.12em]"
                         style={{
                           color: voiceState === "recording"
                             ? "#ef4444"
@@ -2535,7 +2557,9 @@ export default function EmbedChat({
                               ? primaryColor
                               : voiceState === "speaking"
                                 ? "#10b981"
-                                : "var(--text-tertiary)",
+                                : voiceState === "idle"
+                                  ? "#16a34a"
+                                  : "var(--text-tertiary)",
                         }}
                       >
                         {voiceState === "idle" && "Ready – No Call Charges"}
@@ -2555,12 +2579,10 @@ export default function EmbedChat({
                     {voiceState === "idle" && (
                       <div className="flex flex-col items-center gap-2 mt-1">
                         <p
-                          className="text-lg sm:text-xl font-bold tracking-wide max-w-[420px] text-center"
+                          className="text-lg sm:text-xl font-black tracking-wide max-w-[420px] text-center"
                           style={{
-                            background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}99)`,
-                            WebkitBackgroundClip: "text",
-                            WebkitTextFillColor: "transparent",
-                            animation: "subtlePulse 2.5s ease-in-out infinite",
+                            color: primaryColor,
+                            animation: "none",
                           }}
                         >
                           Press the call button to start your personalized consultation.
@@ -2989,15 +3011,13 @@ export default function EmbedChat({
                             </p>
                             {voiceState === "idle" && (
                               <p
-                                className="text-lg font-semibold tracking-wide select-none"
+                                className="text-sm font-bold tracking-wide select-none text-center"
                                 style={{
-                                  background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}99)`,
-                                  WebkitBackgroundClip: "text",
-                                  WebkitTextFillColor: "transparent",
-                                  animation: "subtlePulse 2.5s ease-in-out infinite",
+                                  color: primaryColor,
+                                  animation: "none",
                                 }}
                               >
-                                👇 Tap microphone to talk
+                                Press the call button to start your personalized consultation.
                               </p>
                             )}
                           </div>
@@ -3032,7 +3052,6 @@ export default function EmbedChat({
                     {isMuted ? <VolumeX className="w-4 h-4 text-red-500 animate-pulse" /> : <Volume2 className="w-4 h-4 text-text-secondary" />}
                   </button>
 
-                  {/* Main Mic Action Button */}
                   <button
                     onClick={toggleMic}
                     disabled={voiceState === "thinking"}
@@ -3045,16 +3064,26 @@ export default function EmbedChat({
                             ? "linear-gradient(135deg, #10b981, #059669)"
                             : voiceState === "thinking"
                               ? "var(--bg-secondary)"
-                              : `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
+                              : "linear-gradient(135deg, #22c55e, #16a34a)",
                       boxShadow:
                         voiceState === "recording"
                           ? "0 4px 16px rgba(239,68,68,0.25)"
                           : voiceState === "speaking"
                             ? "0 4px 16px rgba(16,185,129,0.25)"
-                            : `0 4px 16px ${primaryColor}20`,
+                            : voiceState === "thinking"
+                              ? "none"
+                              : "0 4px 16px rgba(34,197,94,0.25)",
                     }}
                   >
-                    {voiceState === "recording" ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                    {voiceState === "recording" ? (
+                      <MicOff className="w-5 h-5 text-white" />
+                    ) : voiceState === "thinking" ? (
+                      <Sparkles className="w-5 h-5 animate-pulse" style={{ color: primaryColor }} />
+                    ) : voiceState === "speaking" ? (
+                      <Volume2 className="w-5 h-5 text-white" />
+                    ) : (
+                      <Phone className="w-5 h-5 text-white animate-pulse" />
+                    )}
                   </button>
 
                   {/* End Call Button */}
