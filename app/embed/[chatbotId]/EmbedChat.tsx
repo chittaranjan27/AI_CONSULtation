@@ -1926,7 +1926,7 @@ export default function EmbedChat({
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                backgroundImage: `url(${widgetConfig.backgroundImageUrl})`,
+                backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.05)), url(${widgetConfig.backgroundImageUrl})`,
                 backgroundPosition: "center",
                 backgroundRepeat: "no-repeat",
                 backgroundSize: "cover",
@@ -2074,7 +2074,7 @@ export default function EmbedChat({
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                backgroundImage: `url(${widgetConfig.backgroundImageUrl})`,
+                backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.05)), url(${widgetConfig.backgroundImageUrl})`,
                 backgroundPosition: "center",
                 backgroundRepeat: "no-repeat",
                 backgroundSize: "cover",
@@ -2316,7 +2316,7 @@ export default function EmbedChat({
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  backgroundImage: `url(${widgetConfig.backgroundImageUrl})`,
+                  backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.05)), url(${widgetConfig.backgroundImageUrl})`,
                   backgroundPosition: "center",
                   backgroundRepeat: "no-repeat",
                   backgroundSize: "cover",
@@ -2466,7 +2466,7 @@ export default function EmbedChat({
                 <div
                   className="absolute inset-0 pointer-events-none"
                   style={{
-                    backgroundImage: `url(${widgetConfig.backgroundImageUrl})`,
+                    backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.05)), url(${widgetConfig.backgroundImageUrl})`,
                     backgroundPosition: "center",
                     backgroundRepeat: "no-repeat",
                     backgroundSize: "cover",
@@ -3118,7 +3118,7 @@ export default function EmbedChat({
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  backgroundImage: `url(${widgetConfig.backgroundImageUrl})`,
+                  backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.05)), url(${widgetConfig.backgroundImageUrl})`,
                   backgroundPosition: "center",
                   backgroundRepeat: "no-repeat",
                   backgroundSize: "cover",
