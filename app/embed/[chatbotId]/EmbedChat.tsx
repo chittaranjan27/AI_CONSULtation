@@ -19,6 +19,9 @@ import {
   MessageSquare,
   PhoneOff,
   Globe,
+  BookOpen,
+  PenTool,
+  Languages,
 } from "lucide-react";
 
 type VoiceState = "idle" | "recording" | "thinking" | "speaking";
@@ -38,6 +41,23 @@ const ALL_SUPPORTED_LANGUAGES = [
   { code: "pt", name: "Portuguese", nativeName: "Português", flag: "🇧🇷", locale: "pt-BR" },
   { code: "zh", name: "Chinese", nativeName: "中文", flag: "🇨🇳", locale: "zh-CN" },
 ];
+
+const LANGUAGE_DETAILS: Record<string, { icon: any; subtitle: string; buttonText: string }> = {
+  en: { icon: Globe, subtitle: "CONTINUE IN ENGLISH", buttonText: "SELECT" },
+  hi: { icon: BookOpen, subtitle: "CONTINUE IN HINDI", buttonText: "चुनें" },
+  ar: { icon: PenTool, subtitle: "CONTINUE IN ARABIC", buttonText: "اختر" },
+  ur: { icon: Languages, subtitle: "CONTINUE IN URDU", buttonText: "منتخب کریں" },
+  es: { icon: Globe, subtitle: "CONTINUAR EN ESPAÑOL", buttonText: "SELECCIONAR" },
+  fr: { icon: BookOpen, subtitle: "CONTINUER EN FRANÇAIS", buttonText: "SÉLECTIONNER" },
+  de: { icon: Languages, subtitle: "AUF DEUTSCH FORTFAHREN", buttonText: "AUSWÄHLEN" },
+  ja: { icon: Globe, subtitle: "日本語で続ける", buttonText: "選択する" },
+  pt: { icon: BookOpen, subtitle: "CONTINUAR EM PORTUGUÊS", buttonText: "SELECIONAR" },
+  zh: { icon: Languages, subtitle: "中文继续", buttonText: "选择" },
+};
+
+const getLanguageDetails = (code: string) => {
+  return LANGUAGE_DETAILS[code] || { icon: Globe, subtitle: `CONTINUE IN ${code.toUpperCase()}`, buttonText: "SELECT" };
+};
 
 const getLocalizedWelcomeMessage = (lang: string, defaultMsg: string) => {
   const isDefault = !defaultMsg ||
@@ -92,6 +112,7 @@ export default function EmbedChat({
   const [isInlineMaximized, setIsInlineMaximized] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState(language);
   const [languageSelected, setLanguageSelected] = useState(supportedLanguages.length <= 1);
+  const [hoveredLang, setHoveredLang] = useState<string | null>("en");
 
   const triggerInlineMaximize = useCallback(() => {
     if (mode === "inline") {
@@ -1826,65 +1847,7 @@ export default function EmbedChat({
           </div>
         </div>
 
-        {/* Language Selector Dropdown */}
-        {leadCaptured && supportedLanguages && supportedLanguages.length > 1 && (
-          <div className="relative">
-            <button
-              onClick={() => setShowLangMenu((prev) => !prev)}
-              className="p-1.5 rounded-lg hover:bg-[var(--bg-glass-hover)] transition-colors flex items-center gap-1"
-              style={{ color: "var(--text-muted)" }}
-              title="Select Language"
-            >
-              <Globe className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">{selectedLanguage}</span>
-              <ChevronDown className="w-3 h-3 opacity-60" />
-            </button>
-            {showLangMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowLangMenu(false)}
-                />
-                <div
-                  className="absolute right-0 mt-1.5 w-32 rounded-xl border shadow-xl z-50 py-1"
-                  style={{
-                    background: "var(--bg-elevated)",
-                    borderColor: "var(--border-primary)",
-                  }}
-                >
-                  {ALL_SUPPORTED_LANGUAGES.filter(lang =>
-                    supportedLanguages.includes(lang.code)
-                  ).map((lang) => (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        setSelectedLanguage(lang.code);
-                        setShowLangMenu(false);
-                        trackEvent("language_change", { from: selectedLanguage, to: lang.code });
-                        // Update the welcome message if the user hasn't typed anything yet
-                        if (chatMessages.length === 1 && chatMessages[0].id === "welcome") {
-                          setChatMessages([{
-                            id: "welcome",
-                            role: "assistant",
-                            text: getLocalizedWelcomeMessage(lang.code, welcomeMessage)
-                          }]);
-                        }
-                      }}
-                      className="w-full text-left px-3 py-1.5 hover:bg-[var(--bg-glass-hover)] transition-colors flex items-center gap-2 text-xs"
-                      style={{
-                        color: selectedLanguage === lang.code ? primaryColor : "var(--text-secondary)",
-                        fontWeight: selectedLanguage === lang.code ? "600" : "400",
-                      }}
-                    >
-                      <span className="text-sm">{lang.flag}</span>
-                      <span>{lang.nativeName}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+
 
         {/* Voice Mode Toggle */}
         {leadCaptured && (
@@ -1957,7 +1920,7 @@ export default function EmbedChat({
 
       {/* ── Language Selection Screen ── */}
       {!languageSelected && (
-        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] p-6 relative z-10 flex flex-col justify-start sm:justify-center items-center">
+        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] p-4 sm:px-6 sm:py-4.5 relative z-10 flex flex-col justify-start sm:justify-center items-center">
           {/* Watermark Background Overlay */}
           {widgetConfig?.backgroundImageUrl && (
             <div
@@ -1967,7 +1930,7 @@ export default function EmbedChat({
                 backgroundPosition: "center",
                 backgroundRepeat: "no-repeat",
                 backgroundSize: "cover",
-                opacity: 0.15,
+                opacity: 0.25,
               }}
             />
           )}
@@ -1999,66 +1962,105 @@ export default function EmbedChat({
           </div>
 
           <div
-            className="w-full max-w-[300px] my-auto py-4 space-y-6 text-center z-10"
+            className="w-full max-w-[680px] my-auto py-2 sm:py-3.5 space-y-3 sm:space-y-4 text-center z-10 px-2"
             style={{ animation: "fadeInUp 0.4s ease-out both" }}
           >
-            {/* Icon */}
-            <div
-              className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center"
-              style={{
-                background: `linear-gradient(135deg, ${primaryColor}18, ${primaryColor}08)`,
-                border: `1.5px solid ${primaryColor}25`,
-                boxShadow: `0 4px 20px ${primaryColor}15`,
-              }}
-            >
-              <Globe className="w-7 h-7 animate-pulse" style={{ color: primaryColor }} />
-            </div>
-
-            {/* Text */}
-            <div className="space-y-2">
-              <h2
-                className="text-lg font-bold"
-                style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
+            {/* Header Text */}
+            <div className="space-y-1.5 max-w-[460px] mx-auto">
+              <h1
+                className="text-[23px] sm:text-[28px] font-black tracking-tight"
+                style={{ color: primaryColor, fontFamily: "var(--font-family)" }}
               >
-                Choose Language / भाषा चुनें
-              </h2>
-              <p className="text-xs leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-                Please select your preferred language for the wellness consultation.
+                Choose your language
+              </h1>
+              <p 
+                className="text-[11px] sm:text-xs leading-relaxed" 
+                style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-family)" }}
+              >
+                Select your preference to begin your bespoke wellness journey. Our professional sanctuary ensures every interaction is curated for absolute privacy.
               </p>
             </div>
 
-            {/* Language Buttons List */}
-            <div className="space-y-2.5">
+            {/* Language Grid */}
+            <div className="grid grid-cols-2 gap-x-3 sm:gap-x-[40px] gap-y-[3px] w-full">
               {ALL_SUPPORTED_LANGUAGES.filter((lang) =>
                 supportedLanguages.includes(lang.code)
-              ).map((lang, idx) => (
-                <button
-                  key={lang.code}
-                  onClick={() => handleLanguageSelect(lang.code)}
-                  className="w-full px-4 py-3 rounded-xl border text-sm font-semibold transition-all flex items-center gap-3 suggestion-btn hover:scale-[1.02] cursor-pointer group animate-[fadeInUp_0.3s_ease-out_both]"
-                  style={{
-                    borderColor: "var(--border-primary)",
-                    color: "var(--text-primary)",
-                    background: "var(--bg-secondary)",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                    animationDelay: `${idx * 0.08}s`,
-                  }}
-                >
-                  <span className="text-2xl shrink-0 leading-none">{lang.flag}</span>
-                  <div className="flex-grow text-left">
-                    <span className="block text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-                      {lang.nativeName}
-                    </span>
-                    <span className="block text-[10px] font-normal" style={{ color: "var(--text-muted)" }}>
-                      {lang.name}
-                    </span>
+              ).map((lang, idx) => {
+                const details = getLanguageDetails(lang.code);
+                const IconComponent = details.icon;
+                const isHovered = hoveredLang === lang.code;
+
+                return (
+                  <div
+                    key={lang.code}
+                    onClick={() => handleLanguageSelect(lang.code)}
+                    onMouseEnter={() => setHoveredLang(lang.code)}
+                    onMouseLeave={() => setHoveredLang(null)}
+                    className="w-full px-3 py-3 sm:py-4 sm:px-5 rounded-[22px] sm:rounded-[26px] border text-center transition-all duration-300 relative flex flex-col justify-between items-center cursor-pointer group"
+                    style={{
+                      background: isHovered ? "rgba(255, 255, 255, 0.85)" : "rgba(255, 255, 255, 0.45)",
+                      backdropFilter: "blur(12px)",
+                      WebkitBackdropFilter: "blur(12px)",
+                      borderColor: isHovered ? `${primaryColor}35` : "rgba(58, 37, 30, 0.05)",
+                      boxShadow: isHovered 
+                        ? `0 10px 25px ${primaryColor}08, 0 1px 3px rgba(58, 37, 30, 0.02)`
+                        : "0 4px 16px rgba(58, 37, 30, 0.01)",
+                      transform: isHovered ? "translateY(-2px) scale(1.01)" : "translateY(0) scale(1)",
+                      animation: "fadeInUp 0.4s ease-out both",
+                      animationDelay: `${idx * 0.06}s`,
+                    }}
+                  >
+                    {/* Circle Icon Container */}
+                    <div
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center mb-3 transition-colors duration-300"
+                      style={{
+                        background: isHovered ? `${primaryColor}12` : "rgba(58, 37, 30, 0.03)",
+                      }}
+                    >
+                      <IconComponent 
+                        className="w-5 h-5 sm:w-5.5 sm:h-5.5 transition-transform duration-300 group-hover:scale-110" 
+                        style={{ color: isHovered ? primaryColor : "var(--text-secondary)" }} 
+                      />
+                    </div>
+
+                    {/* Native language & Subtitle */}
+                    <div className="mb-3">
+                      <h3
+                        className="text-sm sm:text-base font-bold tracking-tight mb-0.5"
+                        style={{ color: "var(--text-primary)", fontFamily: "var(--font-family)" }}
+                      >
+                        {lang.nativeName}
+                      </h3>
+                      <p
+                        className="text-[8px] sm:text-[9px] font-extrabold tracking-widest uppercase line-clamp-1"
+                        style={{ color: "var(--text-muted)", fontFamily: "var(--font-family)" }}
+                      >
+                        {details.subtitle}
+                      </p>
+                    </div>
+
+                    {/* Select CTA Button */}
+                    <button
+                      type="button"
+                      className="w-full py-2 sm:py-2.5 px-4 rounded-full text-[10px] sm:text-[11px] font-bold tracking-wider uppercase transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer"
+                      style={{
+                        background: isHovered ? primaryColor : "rgba(58, 37, 30, 0.03)",
+                        color: isHovered ? "#FFFFFF" : "var(--text-secondary)",
+                        border: isHovered ? "none" : "1px solid rgba(58, 37, 30, 0.06)",
+                        boxShadow: isHovered ? `0 4px 14px ${primaryColor}25` : "none",
+                      }}
+                    >
+                      <span>{details.buttonText}</span>
+                      <ArrowRight 
+                        className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                          isHovered ? "translate-x-0.5" : "translate-x-0"
+                        }`} 
+                        style={{ color: isHovered ? "#FFFFFF" : "var(--text-muted)" }}
+                      />
+                    </button>
                   </div>
-                  <ArrowRight
-                    className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-all shrink-0 translate-x-[-4px] group-hover:translate-x-0"
-                    style={{ color: primaryColor }}
-                  />
-                </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -2066,7 +2068,7 @@ export default function EmbedChat({
 
       {/* ── Lead Capture Form ── */}
       {languageSelected && !leadCaptured && (
-        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] p-6 relative z-10 flex flex-col justify-start sm:justify-center items-center">
+        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] p-4 sm:p-6 relative z-10 flex flex-col justify-start sm:justify-center items-center">
           {/* Watermark Background Overlay */}
           {widgetConfig?.backgroundImageUrl && (
             <div
@@ -2076,45 +2078,80 @@ export default function EmbedChat({
                 backgroundPosition: "center",
                 backgroundRepeat: "no-repeat",
                 backgroundSize: "cover",
-                opacity: 0.15,
+                opacity: 0.25,
               }}
             />
           )}
-          <div className="w-full max-w-[300px] my-auto py-4 space-y-5 text-center">
-            {/* Icon */}
+
+          {/* Animated Background Orbs */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ opacity: 0.25 }}>
             <div
-              className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center"
+              className="absolute rounded-full"
               style={{
-                background: `linear-gradient(135deg, ${primaryColor}18, ${primaryColor}08)`,
-                border: `1.5px solid ${primaryColor}25`,
-                boxShadow: `0 4px 20px ${primaryColor}15`,
+                width: 250,
+                height: 250,
+                top: "10%",
+                right: "5%",
+                background: `radial-gradient(circle, ${primaryColor}12 0%, transparent 70%)`,
+                animation: "voiceFloat 7s ease-in-out infinite",
+              }}
+            />
+            <div
+              className="absolute rounded-full"
+              style={{
+                width: 200,
+                height: 200,
+                bottom: "10%",
+                left: "5%",
+                background: `radial-gradient(circle, ${primaryColor}08 0%, transparent 70%)`,
+                animation: "voiceFloat 9s ease-in-out infinite reverse",
+              }}
+            />
+          </div>
+
+          <div
+            className="w-full max-w-[360px] my-auto py-5 px-5 sm:px-6 rounded-[28px] border transition-all duration-300 relative z-10 flex flex-col items-center bg-[var(--bg-card)]"
+            style={{
+              borderColor: "var(--border-primary)",
+              boxShadow: "0 10px 30px rgba(58, 37, 30, 0.04), 0 1px 3px rgba(58, 37, 30, 0.02)",
+              animation: "fadeInUp 0.5s ease-out both",
+            }}
+          >
+            {/* Elegant Icon */}
+            <div
+              className="w-11 h-11 rounded-full flex items-center justify-center mb-4"
+              style={{
+                background: `${primaryColor}12`,
               }}
             >
-              <Sparkles className="w-7 h-7" style={{ color: primaryColor }} />
+              <Sparkles className="w-5 h-5" style={{ color: primaryColor }} />
             </div>
 
-            {/* Text */}
-            <div className="space-y-1.5">
+            {/* Header Text */}
+            <div className="space-y-1 text-center mb-4">
               <h2
-                className="text-lg font-bold"
-                style={{ color: "var(--text-primary)", letterSpacing: "-0.02em" }}
+                className="text-xl font-bold tracking-tight"
+                style={{ color: "var(--text-primary)", fontFamily: "var(--font-family)" }}
               >
                 Welcome! 👋
               </h2>
-              <p className="text-xs leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+              <p 
+                className="text-[11px] sm:text-xs leading-relaxed" 
+                style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-family)" }}
+              >
                 Share a few details to start your consultation with{" "}
-                <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>
+                <span className="font-semibold text-[var(--text-secondary)]">
                   {botName}
                 </span>
               </p>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleLeadSubmit} className="space-y-3 text-left">
+            <form onSubmit={handleLeadSubmit} className="space-y-3.5 w-full text-left">
               <div>
                 <label
-                  className="text-[11px] font-semibold mb-1.5 block"
-                  style={{ color: "var(--text-secondary)" }}
+                  className="text-[9px] font-extrabold uppercase tracking-wider mb-1.5 block"
+                  style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-family)" }}
                 >
                   Name <span style={{ color: "#ef4444" }}>*</span>
                 </label>
@@ -2124,27 +2161,30 @@ export default function EmbedChat({
                   placeholder="Jane Smith"
                   value={visitorName}
                   onChange={(e) => setVisitorName(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all"
+                  className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm outline-none transition-all duration-200 border"
                   style={{
                     background: "var(--bg-secondary)",
                     border: "1.5px solid var(--border-primary)",
                     color: "var(--text-primary)",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    fontFamily: "var(--font-family)",
                   }}
                   onFocus={(e) => {
                     (e.currentTarget as HTMLInputElement).style.borderColor = primaryColor;
-                    (e.currentTarget as HTMLInputElement).style.boxShadow = `0 0 0 3px ${primaryColor}18`;
+                    (e.currentTarget as HTMLInputElement).style.boxShadow = `0 0 0 3px ${primaryColor}15`;
+                    (e.currentTarget as HTMLInputElement).style.background = "var(--bg-primary)";
                   }}
                   onBlur={(e) => {
                     (e.currentTarget as HTMLInputElement).style.borderColor = "var(--border-primary)";
-                    (e.currentTarget as HTMLInputElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
+                    (e.currentTarget as HTMLInputElement).style.boxShadow = "none";
+                    (e.currentTarget as HTMLInputElement).style.background = "var(--bg-secondary)";
                   }}
                 />
               </div>
+
               <div>
                 <label
-                  className="text-[11px] font-semibold mb-1.5 block"
-                  style={{ color: "var(--text-secondary)" }}
+                  className="text-[9px] font-extrabold uppercase tracking-wider mb-1.5 block"
+                  style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-family)" }}
                 >
                   Location <span style={{ color: "#ef4444" }}>*</span>
                 </label>
@@ -2154,27 +2194,30 @@ export default function EmbedChat({
                   placeholder="City, Country"
                   value={visitorLocation}
                   onChange={(e) => setVisitorLocation(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all"
+                  className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm outline-none transition-all duration-200 border"
                   style={{
                     background: "var(--bg-secondary)",
                     border: "1.5px solid var(--border-primary)",
                     color: "var(--text-primary)",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    fontFamily: "var(--font-family)",
                   }}
                   onFocus={(e) => {
                     (e.currentTarget as HTMLInputElement).style.borderColor = primaryColor;
-                    (e.currentTarget as HTMLInputElement).style.boxShadow = `0 0 0 3px ${primaryColor}18`;
+                    (e.currentTarget as HTMLInputElement).style.boxShadow = `0 0 0 3px ${primaryColor}15`;
+                    (e.currentTarget as HTMLInputElement).style.background = "var(--bg-primary)";
                   }}
                   onBlur={(e) => {
                     (e.currentTarget as HTMLInputElement).style.borderColor = "var(--border-primary)";
-                    (e.currentTarget as HTMLInputElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
+                    (e.currentTarget as HTMLInputElement).style.boxShadow = "none";
+                    (e.currentTarget as HTMLInputElement).style.background = "var(--bg-secondary)";
                   }}
                 />
               </div>
+
               <div>
                 <label
-                  className="text-[11px] font-semibold mb-1.5 block"
-                  style={{ color: "var(--text-secondary)" }}
+                  className="text-[9px] font-extrabold uppercase tracking-wider mb-1.5 block"
+                  style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-family)" }}
                 >
                   Phone Number
                 </label>
@@ -2183,59 +2226,76 @@ export default function EmbedChat({
                   placeholder="+971 *** *** ****"
                   value={visitorPhone}
                   onChange={(e) => setVisitorPhone(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all"
+                  className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm outline-none transition-all duration-200 border"
                   style={{
                     background: "var(--bg-secondary)",
                     border: "1.5px solid var(--border-primary)",
                     color: "var(--text-primary)",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    fontFamily: "var(--font-family)",
                   }}
                   onFocus={(e) => {
                     (e.currentTarget as HTMLInputElement).style.borderColor = primaryColor;
-                    (e.currentTarget as HTMLInputElement).style.boxShadow = `0 0 0 3px ${primaryColor}18`;
+                    (e.currentTarget as HTMLInputElement).style.boxShadow = `0 0 0 3px ${primaryColor}15`;
+                    (e.currentTarget as HTMLInputElement).style.background = "var(--bg-primary)";
                   }}
                   onBlur={(e) => {
                     (e.currentTarget as HTMLInputElement).style.borderColor = "var(--border-primary)";
-                    (e.currentTarget as HTMLInputElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
+                    (e.currentTarget as HTMLInputElement).style.boxShadow = "none";
+                    (e.currentTarget as HTMLInputElement).style.background = "var(--bg-secondary)";
                   }}
                 />
               </div>
-              <button
-                type="submit"
-                disabled={isCapturing || !visitorName || !visitorLocation}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                style={{
-                  background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
-                  boxShadow: `0 4px 16px ${primaryColor}35`,
-                  letterSpacing: "0.01em",
-                }}
-              >
-                {isCapturing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    Start Consultation
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLeadCaptured(true);
-                  triggerInlineMaximize();
-                }}
-                className="w-full text-[11px] transition-colors py-1"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = "var(--text-tertiary)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
-                }}
-              >
-                Skip for now
-              </button>
+
+              <div className="pt-1.5">
+                <button
+                  type="submit"
+                  disabled={isCapturing || !visitorName || !visitorLocation}
+                  className="w-full py-3 rounded-full text-xs font-bold uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 cursor-pointer"
+                  style={{
+                    background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
+                    boxShadow: `0 4px 16px ${primaryColor}25`,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isCapturing && visitorName && visitorLocation) {
+                      (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                      (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 20px ${primaryColor}35`;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 16px ${primaryColor}25`;
+                  }}
+                >
+                  {isCapturing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <span>Start Consultation</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLeadCaptured(true);
+                    triggerInlineMaximize();
+                  }}
+                  className="text-[10px] transition-colors duration-200 py-1 hover:underline cursor-pointer"
+                  style={{ color: "var(--text-muted)", fontFamily: "var(--font-family)" }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)";
+                  }}
+                >
+                  Skip for now
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -2260,7 +2320,7 @@ export default function EmbedChat({
                   backgroundPosition: "center",
                   backgroundRepeat: "no-repeat",
                   backgroundSize: "cover",
-                  opacity: 0.15,
+                  opacity: 0.25,
                 }}
               />
             )}
@@ -2410,7 +2470,7 @@ export default function EmbedChat({
                     backgroundPosition: "center",
                     backgroundRepeat: "no-repeat",
                     backgroundSize: "cover",
-                    opacity: 0.15,
+                    opacity: 0.25,
                   }}
                 />
               )}
@@ -3062,7 +3122,7 @@ export default function EmbedChat({
                   backgroundPosition: "center",
                   backgroundRepeat: "no-repeat",
                   backgroundSize: "cover",
-                  opacity: 0.15,
+                  opacity: 0.25,
                 }}
               />
             )}
