@@ -2581,7 +2581,7 @@ export default function EmbedChat({
                         <p
                           className="text-lg sm:text-xl font-black tracking-wide max-w-[420px] text-center"
                           style={{
-                            color: primaryColor,
+                            color: "var(--text-primary)",
                             animation: "none",
                           }}
                         >
@@ -2816,7 +2816,31 @@ export default function EmbedChat({
 
                 {/* Top Mini Header / State indicator */}
                 <div className="text-center w-full pt-1 pb-2 shrink-0">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border bg-bg-secondary/40" style={{ borderColor: "var(--border-primary)" }}>
+                  <div
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all duration-300"
+                    style={{
+                      background:
+                        voiceState === "recording"
+                          ? "#ef444410"
+                          : voiceState === "thinking"
+                            ? `${primaryColor}10`
+                            : voiceState === "speaking"
+                              ? "#10b98110"
+                              : voiceState === "idle"
+                                ? "rgba(34, 197, 94, 0.08)"
+                                : "var(--bg-secondary)/40",
+                      borderColor:
+                        voiceState === "recording"
+                          ? "#ef444420"
+                          : voiceState === "thinking"
+                            ? `${primaryColor}20`
+                            : voiceState === "speaking"
+                              ? "#10b98120"
+                              : voiceState === "idle"
+                                ? "rgba(34, 197, 94, 0.18)"
+                                : "var(--border-primary)",
+                    }}
+                  >
                     {voiceState === "recording" && (
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -2824,15 +2848,24 @@ export default function EmbedChat({
                       </span>
                     )}
                     {voiceState === "thinking" && (
-                      <Sparkles className="w-3 h-3 animate-spin" style={{ color: primaryColor, animationDuration: '3s' }} />
+                      <Sparkles className="w-3.5 h-3.5 animate-spin" style={{ color: primaryColor, animationDuration: '3s' }} />
                     )}
                     {voiceState === "speaking" && (
-                      <Volume2 className="w-3 h-3 text-emerald-500 animate-pulse" />
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
                     )}
                     <span className="text-[10px] font-bold uppercase tracking-wider" style={{
-                      color: voiceState === "recording" ? "#ef4444" : voiceState === "thinking" ? primaryColor : voiceState === "speaking" ? "#10b981" : "var(--text-muted)"
+                      color:
+                        voiceState === "recording"
+                          ? "#ef4444"
+                          : voiceState === "thinking"
+                            ? primaryColor
+                            : voiceState === "speaking"
+                              ? "#10b981"
+                              : voiceState === "idle"
+                                ? "#16a34a"
+                                : "var(--text-muted)",
                     }}>
-                      {voiceState === "idle" && "Ready"}
+                      {voiceState === "idle" && "Ready – No Call Charges"}
                       {voiceState === "recording" && "Listening"}
                       {voiceState === "thinking" && "AI Consulting"}
                       {voiceState === "speaking" && "Speaking"}
@@ -2989,7 +3022,7 @@ export default function EmbedChat({
                               <p
                                 className="text-sm font-bold tracking-wide select-none text-center"
                                 style={{
-                                  color: primaryColor,
+                                  color: "var(--text-primary)",
                                   animation: "none",
                                 }}
                               >
