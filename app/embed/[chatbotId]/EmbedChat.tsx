@@ -2537,7 +2537,7 @@ export default function EmbedChat({
                                 : "var(--text-tertiary)",
                         }}
                       >
-                        {voiceState === "idle" && "Ready"}
+                        {voiceState === "idle" && "Ready – No Call Charges"}
                         {voiceState === "recording" && "Listening"}
                         {voiceState === "thinking" && "Processing"}
                         {voiceState === "speaking" && "Speaking"}
@@ -2554,7 +2554,7 @@ export default function EmbedChat({
                     {voiceState === "idle" && (
                       <div className="flex flex-col items-center gap-2 mt-1">
                         <p
-                          className="text-lg font-semibold tracking-wide"
+                          className="text-sm sm:text-base font-semibold tracking-wide max-w-[320px] text-center"
                           style={{
                             background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}99)`,
                             WebkitBackgroundClip: "text",
@@ -2562,7 +2562,7 @@ export default function EmbedChat({
                             animation: "subtlePulse 2.5s ease-in-out infinite",
                           }}
                         >
-                          👇 Tap the microphone to begin
+                          Press the microphone button to start your personalized consultation.
                         </p>
                       </div>
                     )}
