@@ -2555,9 +2555,9 @@ export default function EmbedChat({
                     {voiceState === "idle" && (
                       <div className="flex flex-col items-center gap-2 mt-1">
                         <p
-                          className="text-sm sm:text-base font-semibold tracking-wide max-w-[320px] text-center"
+                          className="text-lg sm:text-xl font-bold tracking-wide max-w-[420px] text-center"
                           style={{
-                            background: `linear-gradient(135deg, #16a34a, #15803d)`,
+                            background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}99)`,
                             WebkitBackgroundClip: "text",
                             WebkitTextFillColor: "transparent",
                             animation: "subtlePulse 2.5s ease-in-out infinite",
