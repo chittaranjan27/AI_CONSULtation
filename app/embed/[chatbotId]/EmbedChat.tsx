@@ -22,6 +22,7 @@ import {
   BookOpen,
   PenTool,
   Languages,
+  Phone,
 } from "lucide-react";
 
 type VoiceState = "idle" | "recording" | "thinking" | "speaking";
@@ -2556,13 +2557,13 @@ export default function EmbedChat({
                         <p
                           className="text-sm sm:text-base font-semibold tracking-wide max-w-[320px] text-center"
                           style={{
-                            background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}99)`,
+                            background: `linear-gradient(135deg, #16a34a, #15803d)`,
                             WebkitBackgroundClip: "text",
                             WebkitTextFillColor: "transparent",
                             animation: "subtlePulse 2.5s ease-in-out infinite",
                           }}
                         >
-                          Press the microphone button to start your personalized consultation.
+                          Press the call button to start your personalized consultation.
                         </p>
                       </div>
                     )}
@@ -2571,6 +2572,12 @@ export default function EmbedChat({
                   {/* Big Mic Button */}
                   <div className="relative mb-8 flex items-center justify-center w-28 h-28">
                     {/* Ripple rings */}
+                    {voiceState === "idle" && (
+                      <>
+                        <div className="absolute inset-0 rounded-full bg-green-500/10" style={{ animation: "rippleSpread 2.5s cubic-bezier(0.1, 0.8, 0.3, 1) infinite" }} />
+                        <div className="absolute inset-0 rounded-full bg-green-500/5" style={{ animation: "rippleSpread 2.5s cubic-bezier(0.1, 0.8, 0.3, 1) infinite 0.8s" }} />
+                      </>
+                    )}
                     {voiceState === "recording" && (
                       <>
                         <div className="absolute inset-0 rounded-full bg-red-500/10" style={{ animation: "rippleSpread 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite" }} />
@@ -2598,14 +2605,16 @@ export default function EmbedChat({
                               ? "linear-gradient(135deg, #10b981, #059669)"
                               : voiceState === "thinking"
                                 ? "var(--bg-secondary)"
-                                : `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
+                                : "linear-gradient(135deg, #22c55e, #16a34a)",
                         border: voiceState === "thinking" ? `1px solid var(--border-primary)` : "none",
                         boxShadow:
                           voiceState === "recording"
                             ? "0 8px 32px rgba(239,68,68,0.3)"
                             : voiceState === "speaking"
                               ? "0 8px 32px rgba(16,185,129,0.3)"
-                              : `0 8px 32px ${primaryColor}30`,
+                              : voiceState === "thinking"
+                                ? "none"
+                                : "0 8px 32px rgba(34,197,94,0.3)",
                         animation: voiceState === "recording" ? "voicePulse 2s ease-in-out infinite" : "none",
                       }}
                     >
@@ -2616,7 +2625,7 @@ export default function EmbedChat({
                       ) : voiceState === "speaking" ? (
                         <Volume2 className="w-8 h-8 text-white" />
                       ) : (
-                        <Mic className="w-8 h-8 text-white" />
+                        <Phone className="w-7 h-7 text-white" />
                       )}
                     </button>
                   </div>
