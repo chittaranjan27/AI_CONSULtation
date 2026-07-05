@@ -1,8 +1,36 @@
 import prisma from "@/lib/db/prisma";
 import { LeadStatus } from "@prisma/client";
 import AnalyticsManagerClient from "@/components/admin/AnalyticsManagerClient";
+import { Suspense } from "react";
 
-export default async function AdminAnalyticsPage() {
+function AnalyticsSkeleton() {
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      {/* Title skeleton */}
+      <div className="h-8 w-64 bg-[var(--bg-tertiary)] rounded-lg animate-pulse" />
+
+      {/* KPI Cards skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="glass-card p-6 h-40 bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
+        <div className="glass-card p-6 h-40 bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
+        <div className="glass-card p-6 h-40 bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
+      </div>
+
+      {/* Chart container skeleton */}
+      <div className="glass-card p-6 h-[400px] bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
+    </div>
+  );
+}
+
+export default function AdminAnalyticsPage() {
+  return (
+    <Suspense fallback={<AnalyticsSkeleton />}>
+      <AnalyticsContent />
+    </Suspense>
+  );
+}
+
+async function AnalyticsContent() {
   // Parallel DB queries combining AI tokens, chatbot analytics, and leads analytics
   const [
     // 1. AI Tokens Aggregates

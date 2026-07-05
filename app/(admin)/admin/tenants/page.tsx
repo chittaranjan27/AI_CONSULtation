@@ -1,7 +1,22 @@
 import prisma from "@/lib/db/prisma";
 import TenantsListClient from "@/components/admin/TenantsListClient";
+import { Suspense } from "react";
 
-export default async function AdminTenantsPage() {
+function TenantsTableSkeleton() {
+  return (
+    <div className="glass-card p-5 h-96 bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
+  );
+}
+
+export default function AdminTenantsPage() {
+  return (
+    <Suspense fallback={<TenantsTableSkeleton />}>
+      <TenantsTableContent />
+    </Suspense>
+  );
+}
+
+async function TenantsTableContent() {
   const tenants = await prisma.tenant.findMany({
     include: {
       users: {
