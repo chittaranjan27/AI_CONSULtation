@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -20,6 +21,18 @@ interface TenantDetailChartProps {
 }
 
 export default function TenantDetailChart({ chartData }: TenantDetailChartProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="glass-card p-5 h-[384px] bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
+    );
+  }
+
   return (
     <div className="glass-card p-5 hover:transform-none">
       <h3 className="text-base font-semibold text-[var(--text-primary)] mb-4">
@@ -31,7 +44,7 @@ export default function TenantDetailChart({ chartData }: TenantDetailChartProps)
             No activity logs found for this tenant in the last 30 days.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="colorConvsDetail" x1="0" y1="0" x2="0" y2="1">

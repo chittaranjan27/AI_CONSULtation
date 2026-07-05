@@ -62,7 +62,7 @@ export default function AdminDashboardCharts({ growthData, planData }: AdminDash
           Financial Trends (Revenue vs AI Cost)
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <LineChart data={growthData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
               <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
@@ -103,7 +103,7 @@ export default function AdminDashboardCharts({ growthData, planData }: AdminDash
           Engagement & Conversions (Conversations vs Leads)
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <AreaChart data={growthData}>
               <defs>
                 <linearGradient id="colorConvs" x1="0" y1="0" x2="0" y2="1">
@@ -156,7 +156,7 @@ export default function AdminDashboardCharts({ growthData, planData }: AdminDash
           Tenant Growth (New Signups)
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <BarChart data={growthData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
               <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
@@ -187,7 +187,7 @@ export default function AdminDashboardCharts({ growthData, planData }: AdminDash
           ) : (
             <div className="flex flex-col md:flex-row items-center justify-around w-full">
               <div className="w-60 h-60">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={planData}
