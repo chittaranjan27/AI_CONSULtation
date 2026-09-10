@@ -1,22 +1,8 @@
 import prisma from "@/lib/db/prisma";
 import UsersListClient from "@/components/admin/UsersListClient";
-import { Suspense } from "react";
 
-function UsersTableSkeleton() {
-  return (
-    <div className="glass-card p-5 h-96 bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
-  );
-}
+export default async function AdminUsersPage() {
 
-export default function AdminUsersPage() {
-  return (
-    <Suspense fallback={<UsersTableSkeleton />}>
-      <UsersTableContent />
-    </Suspense>
-  );
-}
-
-async function UsersTableContent() {
   // Parallelize both queries and use select to fetch only display fields
   const [users, tenants] = await Promise.all([
     prisma.user.findMany({

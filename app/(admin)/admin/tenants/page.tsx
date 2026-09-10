@@ -1,22 +1,7 @@
 import prisma from "@/lib/db/prisma";
 import TenantsListClient from "@/components/admin/TenantsListClient";
-import { Suspense } from "react";
 
-function TenantsTableSkeleton() {
-  return (
-    <div className="glass-card p-5 h-96 bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
-  );
-}
-
-export default function AdminTenantsPage() {
-  return (
-    <Suspense fallback={<TenantsTableSkeleton />}>
-      <TenantsTableContent />
-    </Suspense>
-  );
-}
-
-async function TenantsTableContent() {
+export default async function AdminTenantsPage() {
   const tenants = await prisma.tenant.findMany({
     include: {
       users: {
@@ -53,10 +38,10 @@ async function TenantsTableContent() {
       createdAt: tenant.createdAt.toISOString(),
       owner: owner
         ? {
-            id: owner.id,
-            name: owner.name || "Unnamed",
-            email: owner.email,
-          }
+          id: owner.id,
+          name: owner.name || "Unnamed",
+          email: owner.email,
+        }
         : null,
       chatbotsCount: tenant._count.chatbots,
       leadsCount: tenant._count.leads,

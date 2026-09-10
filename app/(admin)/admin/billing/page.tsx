@@ -1,39 +1,8 @@
 import prisma from "@/lib/db/prisma";
 import { SubscriptionStatus } from "@prisma/client";
 import BillingManagerClient from "@/components/admin/BillingManagerClient";
-import { Suspense } from "react";
 
-function BillingSkeleton() {
-  return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Title skeleton */}
-      <div className="h-8 w-64 bg-[var(--bg-tertiary)] rounded-lg animate-pulse" />
-      
-      {/* KPI Cards skeleton */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="glass-card p-4 h-24 bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
-        ))}
-      </div>
-      
-      {/* Table & sidebar skeletons */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="glass-card p-5 h-96 bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl lg:col-span-2" />
-        <div className="glass-card p-5 h-96 bg-[var(--bg-elevated)]/20 animate-pulse border border-[var(--border-primary)] rounded-xl" />
-      </div>
-    </div>
-  );
-}
-
-export default function AdminBillingPage() {
-  return (
-    <Suspense fallback={<BillingSkeleton />}>
-      <BillingContent />
-    </Suspense>
-  );
-}
-
-async function BillingContent() {
+export default async function AdminBillingPage() {
   // Parallel query execution
   const [
     plans,
