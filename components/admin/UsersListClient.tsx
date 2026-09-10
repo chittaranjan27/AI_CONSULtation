@@ -72,7 +72,7 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
     name: "",
     email: "",
     password: "",
-    role: "SUPPORT_AGENT",
+    role: "TENANT_OWNER",
     tenantId: tenants[0]?.id || "",
   });
 
@@ -130,7 +130,7 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
           name: "",
           email: "",
           password: "",
-          role: "SUPPORT_AGENT",
+          role: "TENANT_OWNER",
           tenantId: tenants[0]?.id || "",
         });
         router.refresh();
@@ -622,7 +622,7 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
             <div className="p-5 border-b border-[var(--border-primary)] flex items-center justify-between bg-[var(--bg-tertiary)]/20">
               <div>
                 <h2 className="text-base font-bold text-[var(--text-primary)]">Create New User</h2>
-                <p className="text-xs text-[var(--text-tertiary)]">Add a user to a tenant workspace and assign system roles</p>
+                <p className="text-xs text-[var(--text-tertiary)]">Add a Site Owner to a tenant workspace</p>
               </div>
               <button
                 onClick={() => {
@@ -725,22 +725,16 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
                 </div>
               </div>
 
+              {/* Role — always Site Owner, no dropdown needed */}
               <div>
-                <label className="input-label">System Role Authorization</label>
-                <div className="relative">
-                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
-                  <select
-                    value={createForm.role}
-                    onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
-                    className="input-field !pl-10 !py-2.5 text-sm"
-                    required
-                  >
-                    <option value="TENANT_OWNER">Site Owner (Full Access)</option>
-                    <option value="MANAGER">Manager</option>
-                    <option value="SUPPORT_AGENT">Support Agent</option>
-                    <option value="ANALYST">Analyst</option>
-                    <option value="SUPER_ADMIN">Super Admin</option>
-                  </select>
+                <label className="input-label">Assigned Role</label>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)]">
+                  <Shield className="w-4 h-4 text-[var(--brand-purple)] shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">Site Owner</p>
+                    <p className="text-[11px] text-[var(--text-muted)]">Full access to their workspace — chatbots, leads, team, and settings</p>
+                  </div>
+                  <span className="badge badge-purple text-[10px] uppercase font-bold">Fixed</span>
                 </div>
               </div>
 
