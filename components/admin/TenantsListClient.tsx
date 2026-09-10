@@ -43,9 +43,10 @@ interface Tenant {
 
 interface TenantsListClientProps {
   initialTenants: Tenant[];
+  isSuperAdmin: boolean;
 }
 
-export default function TenantsListClient({ initialTenants }: TenantsListClientProps) {
+export default function TenantsListClient({ initialTenants, isSuperAdmin }: TenantsListClientProps) {
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>(initialTenants);
   const [searchTerm, setSearchTerm] = useState("");
@@ -304,10 +305,12 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
             Total of {tenants.length} workspaces registered on the platform.
           </p>
         </div>
-        <button onClick={() => setCreateOpen(true)} className="btn-primary text-sm py-2.5 px-5 shrink-0">
-          <Plus className="w-4 h-4" />
-          Create Tenant
-        </button>
+        {isSuperAdmin && (
+          <button onClick={() => setCreateOpen(true)} className="btn-primary text-sm py-2.5 px-5 shrink-0">
+            <Plus className="w-4 h-4" />
+            Create Tenant
+          </button>
+        )}
       </div>
 
       {/* Filters bar */}
@@ -434,6 +437,7 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {/* View button — visible to all admins */}
                           <Link
                             href={`/admin/tenants/${t.id}`}
                             className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-white transition-colors"
@@ -442,62 +446,67 @@ export default function TenantsListClient({ initialTenants }: TenantsListClientP
                             <Eye className="w-3.5 h-3.5" />
                           </Link>
 
-                          <button
-                            onClick={() => handleImpersonate(t.id)}
-                            disabled={isLoading}
-                            className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-purple-500/10 text-[var(--brand-purple)] hover:text-purple-300 transition-colors"
-                            title="Impersonate Tenant"
-                          >
-                            {isLoading ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Shield className="w-3.5 h-3.5" />
-                            )}
-                          </button>
+                          {/* System-level controls — Super Admin only */}
+                          {isSuperAdmin && (
+                            <>
+                              <button
+                                onClick={() => handleImpersonate(t.id)}
+                                disabled={isLoading}
+                                className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-purple-500/10 text-[var(--brand-purple)] hover:text-purple-300 transition-colors"
+                                title="Impersonate Tenant"
+                              >
+                                {isLoading ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Shield className="w-3.5 h-3.5" />
+                                )}
+                              </button>
 
-                          <button
-                            onClick={() => {
-                              setSelectedTenant(t);
-                              setSelectedPlan(t.plan);
-                              setEditPlanOpen(true);
-                            }}
-                            className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-white transition-colors"
-                            title="Edit Plan"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedTenant(t);
+                                  setSelectedPlan(t.plan);
+                                  setEditPlanOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-white transition-colors"
+                                title="Edit Plan"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
 
-                          <button
-                            onClick={() => handleToggleStatus(t.id, t.status)}
-                            disabled={isLoading}
-                            className={`p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] transition-colors ${
-                              t.status === "ACTIVE"
-                                ? "text-amber-400 hover:text-amber-300"
-                                : "text-emerald-400 hover:text-emerald-300"
-                            }`}
-                            title={t.status === "ACTIVE" ? "Suspend Tenant" : "Activate Tenant"}
-                          >
-                            {isLoading ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : t.status === "ACTIVE" ? (
-                              <AlertOctagon className="w-3.5 h-3.5" />
-                            ) : (
-                              <CheckCircle className="w-3.5 h-3.5" />
-                            )}
-                          </button>
+                              <button
+                                onClick={() => handleToggleStatus(t.id, t.status)}
+                                disabled={isLoading}
+                                className={`p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] transition-colors ${
+                                  t.status === "ACTIVE"
+                                    ? "text-amber-400 hover:text-amber-300"
+                                    : "text-emerald-400 hover:text-emerald-300"
+                                }`}
+                                title={t.status === "ACTIVE" ? "Suspend Tenant" : "Activate Tenant"}
+                              >
+                                {isLoading ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : t.status === "ACTIVE" ? (
+                                  <AlertOctagon className="w-3.5 h-3.5" />
+                                ) : (
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                )}
+                              </button>
 
-                          <button
-                            onClick={() => handleDeleteTenant(t.id, t.name)}
-                            disabled={isLoading}
-                            className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors"
-                            title="Delete Tenant"
-                          >
-                            {isLoading ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-3.5 h-3.5" />
-                            )}
-                          </button>
+                              <button
+                                onClick={() => handleDeleteTenant(t.id, t.name)}
+                                disabled={isLoading}
+                                className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors"
+                                title="Delete Tenant"
+                              >
+                                {isLoading ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

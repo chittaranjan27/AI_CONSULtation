@@ -17,6 +17,11 @@ export async function PATCH(
     const body = await req.json();
     const { name, role, isActive, password } = body;
 
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (targetUser?.email === "admin@brahmagraha.com") {
+      return NextResponse.json({ error: "The main super admin account cannot be modified." }, { status: 403 });
+    }
+
     const dataToUpdate: any = {};
     if (name !== undefined) dataToUpdate.name = name;
     if (role !== undefined) dataToUpdate.role = role;
@@ -48,6 +53,11 @@ export async function DELETE(
     }
 
     const { id } = await params;
+
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (targetUser?.email === "admin@brahmagraha.com") {
+      return NextResponse.json({ error: "The main super admin account cannot be deleted." }, { status: 403 });
+    }
 
     // Prevent deleting oneself
     if (session.user.id === id) {

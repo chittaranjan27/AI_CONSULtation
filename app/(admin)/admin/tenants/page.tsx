@@ -1,7 +1,11 @@
 import prisma from "@/lib/db/prisma";
+import { auth } from "@/lib/auth/auth";
 import TenantsListClient from "@/components/admin/TenantsListClient";
 
 export default async function AdminTenantsPage() {
+  const session = await auth();
+  const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
+
   const tenants = await prisma.tenant.findMany({
     include: {
       users: {
@@ -49,5 +53,5 @@ export default async function AdminTenantsPage() {
     };
   });
 
-  return <TenantsListClient initialTenants={formattedTenants} />;
+  return <TenantsListClient initialTenants={formattedTenants} isSuperAdmin={isSuperAdmin} />;
 }

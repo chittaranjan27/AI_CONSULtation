@@ -429,55 +429,61 @@ export default function UsersListClient({ initialUsers, tenants }: UsersListClie
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => {
-                              setSelectedUser(u);
-                              setEditForm({
-                                name: u.name || "",
-                                role: u.role,
-                                isActive: u.isActive,
-                                password: "",
-                              });
-                              setErrorMsg("");
-                              setEditOpen(true);
-                            }}
-                            className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-white transition-colors"
-                            title="Edit User Details / Role / Password"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          {u.email === "admin@brahmagraha.com" ? (
+                            <span className="text-[10px] text-[var(--text-muted)] font-medium px-2 py-1 bg-[var(--bg-tertiary)] rounded">System Locked</span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedUser(u);
+                                  setEditForm({
+                                    name: u.name || "",
+                                    role: u.role,
+                                    isActive: u.isActive,
+                                    password: "",
+                                  });
+                                  setErrorMsg("");
+                                  setEditOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-white transition-colors"
+                                title="Edit User Details / Role / Password"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
 
-                          <button
-                            onClick={() => handleToggleStatus(u)}
-                            disabled={isLoading}
-                            className={`p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] transition-colors ${
-                              u.isActive
-                                ? "text-amber-400 hover:text-amber-300"
-                                : "text-emerald-400 hover:text-emerald-300"
-                            }`}
-                            title={u.isActive ? "Suspend User" : "Activate User"}
-                          >
-                            {isLoading ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : u.isActive ? (
-                              <AlertOctagon className="w-3.5 h-3.5" />
-                            ) : (
-                              <CheckCircle className="w-3.5 h-3.5" />
-                            )}
-                          </button>
+                              <button
+                                onClick={() => handleToggleStatus(u)}
+                                disabled={isLoading}
+                                className={`p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] transition-colors ${
+                                  u.isActive
+                                    ? "text-amber-400 hover:text-amber-300"
+                                    : "text-emerald-400 hover:text-emerald-300"
+                                }`}
+                                title={u.isActive ? "Suspend User" : "Activate User"}
+                              >
+                                {isLoading ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : u.isActive ? (
+                                  <AlertOctagon className="w-3.5 h-3.5" />
+                                ) : (
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                )}
+                              </button>
 
-                          <button
-                            onClick={() => handleDeleteUser(u)}
-                            disabled={isLoading}
-                            className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors"
-                            title="Delete User"
-                          >
-                            {isLoading ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-3.5 h-3.5" />
-                            )}
-                          </button>
+                              <button
+                                onClick={() => handleDeleteUser(u)}
+                                disabled={isLoading}
+                                className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors"
+                                title="Delete User"
+                              >
+                                {isLoading ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
