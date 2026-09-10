@@ -131,6 +131,14 @@ export async function PATCH(
     const body = await req.json();
     const { action, plan } = body; // action: "suspend" | "activate"
 
+    // Protect the system tenant from any modifications
+    const SUPER_ADMIN_EMAIL = "admin@brahmagraha.com";
+    const tenantUsers = await prisma.user.findMany({ where: { tenantId: id }, select: { email: true } });
+    const isSystemTenant = tenantUsers.some((u) => u.email === SUPER_ADMIN_EMAIL);
+    if (isSystemTenant) {
+      return NextResponse.json({ error: "The Platform Super Admin tenant cannot be modified." }, { status: 403 });
+    }
+
     if (action === "suspend") {
       // Deactivate all users in this tenant
       await prisma.user.updateMany({
@@ -227,6 +235,14 @@ export async function DELETE(
     const session = await auth();
     if (!session || session.user.role !== "SUPER_ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Protect the system tenant from deletion
+    const SUPER_ADMIN_EMAIL = "admin@brahmagraha.com";
+    const tenantUsers = await prisma.user.findMany({ where: { tenantId: id }, select: { email: true } });
+    const isSystemTenant = tenantUsers.some((u) => u.email === SUPER_ADMIN_EMAIL);
+    if (isSystemTenant) {
+      return NextResponse.json({ error: "The Platform Super Admin tenant cannot be deleted." }, { status: 403 });
     }
 
     // Run transaction

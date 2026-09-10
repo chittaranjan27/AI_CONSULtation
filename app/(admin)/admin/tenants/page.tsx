@@ -1,11 +1,7 @@
 import prisma from "@/lib/db/prisma";
-import { auth } from "@/lib/auth/auth";
 import TenantsListClient from "@/components/admin/TenantsListClient";
 
 export default async function AdminTenantsPage() {
-  const session = await auth();
-  const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
-
   const tenants = await prisma.tenant.findMany({
     include: {
       users: {
@@ -29,9 +25,13 @@ export default async function AdminTenantsPage() {
   });
 
   // Format the output structure
+  const SUPER_ADMIN_EMAIL = "admin@brahmagraha.com";
+
   const formattedTenants = tenants.map((tenant) => {
     const owner = tenant.users.find((u) => u.role === "TENANT_OWNER") || tenant.users[0];
     const isSuspended = tenant.users.every((u) => !u.isActive);
+    // Lock the tenant that belongs to the Platform Super Admin
+    const isSystemTenant = tenant.users.some((u) => u.email === SUPER_ADMIN_EMAIL);
 
     return {
       id: tenant.id,
@@ -50,8 +50,9 @@ export default async function AdminTenantsPage() {
       chatbotsCount: tenant._count.chatbots,
       leadsCount: tenant._count.leads,
       status: isSuspended ? ("SUSPENDED" as const) : ("ACTIVE" as const),
+      isSystemTenant,
     };
   });
 
-  return <TenantsListClient initialTenants={formattedTenants} isSuperAdmin={isSuperAdmin} />;
+  return <TenantsListClient initialTenants={formattedTenants} />;
 }

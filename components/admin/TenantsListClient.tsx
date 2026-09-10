@@ -39,14 +39,14 @@ interface Tenant {
   chatbotsCount: number;
   leadsCount: number;
   status: "ACTIVE" | "SUSPENDED";
+  isSystemTenant: boolean;
 }
 
 interface TenantsListClientProps {
   initialTenants: Tenant[];
-  isSuperAdmin: boolean;
 }
 
-export default function TenantsListClient({ initialTenants, isSuperAdmin }: TenantsListClientProps) {
+export default function TenantsListClient({ initialTenants }: TenantsListClientProps) {
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>(initialTenants);
   const [searchTerm, setSearchTerm] = useState("");
@@ -305,12 +305,10 @@ export default function TenantsListClient({ initialTenants, isSuperAdmin }: Tena
             Total of {tenants.length} workspaces registered on the platform.
           </p>
         </div>
-        {isSuperAdmin && (
-          <button onClick={() => setCreateOpen(true)} className="btn-primary text-sm py-2.5 px-5 shrink-0">
-            <Plus className="w-4 h-4" />
-            Create Tenant
-          </button>
-        )}
+        <button onClick={() => setCreateOpen(true)} className="btn-primary text-sm py-2.5 px-5 shrink-0">
+          <Plus className="w-4 h-4" />
+          Create Tenant
+        </button>
       </div>
 
       {/* Filters bar */}
@@ -437,7 +435,7 @@ export default function TenantsListClient({ initialTenants, isSuperAdmin }: Tena
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {/* View button — visible to all admins */}
+                          {/* View is always allowed */}
                           <Link
                             href={`/admin/tenants/${t.id}`}
                             className="p-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-white transition-colors"
@@ -446,8 +444,9 @@ export default function TenantsListClient({ initialTenants, isSuperAdmin }: Tena
                             <Eye className="w-3.5 h-3.5" />
                           </Link>
 
-                          {/* System-level controls — Super Admin only */}
-                          {isSuperAdmin && (
+                          {t.isSystemTenant ? (
+                            <span className="text-[10px] text-[var(--text-muted)] font-medium px-2 py-1 bg-[var(--bg-tertiary)] rounded border border-[var(--border-primary)]">System Locked</span>
+                          ) : (
                             <>
                               <button
                                 onClick={() => handleImpersonate(t.id)}
