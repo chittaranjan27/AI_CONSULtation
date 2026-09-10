@@ -39,7 +39,7 @@ export default function ConversationCharts({ timelineData, channelData }: Conver
           Chat Volume & AI Latency (Response Time)
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <LineChart data={timelineData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
               <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
@@ -88,7 +88,7 @@ export default function ConversationCharts({ timelineData, channelData }: Conver
           ) : (
             <div className="flex flex-col items-center justify-around w-full h-full">
               <div className="w-44 h-44">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={channelData}
@@ -135,3 +135,4 @@ export default function ConversationCharts({ timelineData, channelData }: Conver
     </div>
   );
 }
+

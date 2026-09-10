@@ -39,7 +39,7 @@ export default function LeadAnalyticsClient({ timelineData, sourceData }: LeadAn
           Lead Capture & Qualification Timeline
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <AreaChart data={timelineData}>
               <defs>
                 <linearGradient id="leadsGrad" x1="0" y1="0" x2="0" y2="1">
@@ -97,7 +97,7 @@ export default function LeadAnalyticsClient({ timelineData, sourceData }: LeadAn
           ) : (
             <div className="flex flex-col items-center justify-around w-full h-full">
               <div className="w-48 h-48">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={sourceData}
@@ -144,3 +144,4 @@ export default function LeadAnalyticsClient({ timelineData, sourceData }: LeadAn
     </div>
   );
 }
+

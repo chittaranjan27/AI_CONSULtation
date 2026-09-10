@@ -23,7 +23,7 @@ export default function ChatbotAnalyticsCharts({ providerData, modelData }: Chat
           ) : (
             <div className="flex flex-col sm:flex-row items-center justify-around w-full">
               <div className="w-40 h-40">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={providerData}
@@ -77,7 +77,7 @@ export default function ChatbotAnalyticsCharts({ providerData, modelData }: Chat
           ) : (
             <div className="flex flex-col sm:flex-row items-center justify-around w-full">
               <div className="w-40 h-40">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={modelData}
@@ -122,3 +122,4 @@ export default function ChatbotAnalyticsCharts({ providerData, modelData }: Chat
     </div>
   );
 }
+

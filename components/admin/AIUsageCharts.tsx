@@ -41,7 +41,7 @@ export default function AIUsageCharts({ timelineData, providerData }: AIUsageCha
           Daily Infrastructure Costs & API Expenses
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <LineChart data={timelineData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
               <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
@@ -79,7 +79,7 @@ export default function AIUsageCharts({ timelineData, providerData }: AIUsageCha
           ) : (
             <div className="flex flex-col items-center justify-around w-full h-full">
               <div className="w-44 h-44">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={providerData}
@@ -131,7 +131,7 @@ export default function AIUsageCharts({ timelineData, providerData }: AIUsageCha
           Token & Voice Usage Timeline
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <BarChart data={timelineData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
               <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
@@ -155,3 +155,4 @@ export default function AIUsageCharts({ timelineData, providerData }: AIUsageCha
     </div>
   );
 }
+

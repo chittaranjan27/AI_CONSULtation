@@ -39,7 +39,7 @@ export default function RevenueCharts({ timelineData, planData }: RevenueChartsP
           Monthly Recurring Revenue (MRR) Growth
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <AreaChart data={timelineData}>
               <defs>
                 <linearGradient id="mrrGrad" x1="0" y1="0" x2="0" y2="1">
@@ -85,7 +85,7 @@ export default function RevenueCharts({ timelineData, planData }: RevenueChartsP
           ) : (
             <div className="flex flex-col items-center justify-around w-full h-full">
               <div className="w-44 h-44">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={planData}
@@ -136,7 +136,7 @@ export default function RevenueCharts({ timelineData, planData }: RevenueChartsP
           Paying Subscriber Base Growth
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <BarChart data={timelineData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
               <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
@@ -158,3 +158,4 @@ export default function RevenueCharts({ timelineData, planData }: RevenueChartsP
     </div>
   );
 }
+

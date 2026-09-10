@@ -22,8 +22,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performLogin = async (loginEmail: string, loginPass: string) => {
     setError("");
     setLoading(true);
 
@@ -31,7 +30,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: loginEmail, password: loginPass }),
       });
 
       const data = await res.json();
@@ -50,6 +49,17 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await performLogin(email, password);
+  };
+
+  const handleDemoLogin = async () => {
+    setEmail("john@gmail.com");
+    setPassword("john@123");
+    await performLogin("john@gmail.com", "john@123");
   };
 
   return (
@@ -177,20 +187,46 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full justify-center py-3 text-sm mt-2"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
+            <div className="pt-2 space-y-3">
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full justify-center py-3 text-sm"
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    Sign In
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-[var(--border-primary)]"></div>
+                <span className="flex-shrink-0 mx-4 text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold">
+                  Or
+                </span>
+                <div className="flex-grow border-t border-[var(--border-primary)]"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDemoLogin}
+                disabled={loading}
+                className="btn-secondary w-full justify-center py-3 text-sm flex items-center gap-2 border-[var(--brand-purple)]/30 text-[var(--brand-purple)] hover:bg-[var(--brand-purple)]/10"
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Eye className="w-4 h-4" />
+                    One-Click Demo Login
+                  </>
+                )}
+              </button>
+            </div>
           </form>
 
           <p className="text-xs text-center text-[var(--text-muted)] mt-8">

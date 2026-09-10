@@ -31,7 +31,7 @@ export default function HealthCharts({ timelineData }: HealthChartsProps) {
           CPU & RAM Memory Loads (Last 30 Mins)
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <AreaChart data={timelineData}>
               <defs>
                 <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
@@ -84,7 +84,7 @@ export default function HealthCharts({ timelineData }: HealthChartsProps) {
           Database Query response Latency (Last 30 Mins)
         </h3>
         <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <LineChart data={timelineData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
               <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
@@ -113,3 +113,4 @@ export default function HealthCharts({ timelineData }: HealthChartsProps) {
     </div>
   );
 }
+
