@@ -1,0 +1,56 @@
+services:
+  # ============================================
+  # Development Web Server (Live Reload + Neon DB)
+  # ============================================
+  web-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: brahma-graha-web-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - WATCHPACK_POLLING=true
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - brahma_net
+
+  # ============================================
+  # Redis Cache & Queue
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: brahma-graha-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+    networks:
+      - brahma_net
+
+volumes:
+  redis_dev_data:
+    driver: local
+
+networks:
+  brahma_net:
+    driver: bridge
