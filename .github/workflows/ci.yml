@@ -10,8 +10,8 @@ jobs:
   validate-and-build:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/brahma_graha?schema=public"
-      NEXTAUTH_SECRET: "ci-test-secret-key-min-32-characters-long"
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://user:pass@ep-cloud.aws.neon.tech/neondb?sslmode=require' }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'ci-test-secret-key-min-32-characters-long' }}
 
     steps:
       # 1. Checkout repository code

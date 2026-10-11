@@ -34,7 +34,7 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/brahma_graha?schema=public"
+ENV DATABASE_URL="postgresql://neondb_owner:dummy@ep-cloud.aws.neon.tech/neondb?sslmode=require"
 
 # Generate Prisma Client for the Linux container architecture
 RUN npx prisma generate
