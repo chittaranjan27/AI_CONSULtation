@@ -34,6 +34,7 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/brahma_graha?schema=public"
 
 # Generate Prisma Client for the Linux container architecture
 RUN npx prisma generate
