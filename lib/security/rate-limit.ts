@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import Redis from "ioredis";
+import { getRedisClient } from "@/lib/redis/client";
 
 // Ensure this utility is strictly server-only
 if (typeof window !== "undefined") {
@@ -25,55 +25,7 @@ export interface RateLimitResult {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 1. Redis Connection Manager (Resilient Singleton)
-// ─────────────────────────────────────────────────────────────
-let redisClient: Redis | null = null;
-let isRedisAvailable = false;
-
-function getRedisClient(): Redis | null {
-  if (redisClient) return isRedisAvailable ? redisClient : null;
-
-  const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) return null;
-
-  try {
-    const client = new Redis(redisUrl, {
-      connectTimeout: 2000,
-      maxRetriesPerRequest: 1,
-      lazyConnect: true,
-      enableOfflineQueue: false,
-      retryStrategy(times) {
-        if (times > 3) return null; // stop retrying quickly
-        return Math.min(times * 100, 1000);
-      },
-    });
-
-    client.on("connect", () => {
-      isRedisAvailable = true;
-    });
-
-    client.on("error", () => {
-      isRedisAvailable = false;
-    });
-
-    client.on("close", () => {
-      isRedisAvailable = false;
-    });
-
-    client.connect().catch(() => {
-      isRedisAvailable = false;
-    });
-
-    redisClient = client;
-    return isRedisAvailable ? redisClient : null;
-  } catch {
-    isRedisAvailable = false;
-    return null;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// 2. High-Performance In-Memory Sliding Window Store (Fallback)
+// 2. In-Memory Sliding Window Store (Fallback & Local Evaluation)
 // ─────────────────────────────────────────────────────────────
 interface WindowRecord {
   timestamps: number[];
@@ -180,7 +132,7 @@ export async function checkRateLimitAsync(
   const windowMs = options.windowSeconds * 1000;
   const reset = Math.ceil((now + windowMs) / 1000);
 
-  if (redis && isRedisAvailable) {
+  if (redis && (redis.status === "ready" || redis.status === "connect")) {
     try {
       const redisKey = `ratelimit:${key}`;
       const windowStart = now - windowMs;

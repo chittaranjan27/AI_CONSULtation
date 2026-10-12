@@ -5,6 +5,7 @@ import { retrieveContext } from "./rag";
 import prisma from "@/lib/db/prisma";
 import { Prisma } from "@prisma/client";
 import { decryptApiKey } from "@/lib/security/encryption";
+import { redisGet, redisSet, redisDel } from "@/lib/redis/client";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -33,30 +34,36 @@ interface ConsultationStep {
 /** Minimum message length to qualify for RAG retrieval (short option clicks don't need it) */
 const RAG_MIN_MESSAGE_LENGTH = 50;
 
-// ── In-memory chatbot config cache (60s TTL) ──
-// Chatbot config (system prompt, steps, temperature, model) changes rarely.
-// Caching avoids a full DB round-trip on every chat request.
-const chatbotConfigCache = new Map<string, { data: any; timestamp: number }>();
-const CHATBOT_CACHE_TTL = 60_000; // 60 seconds
+// ── Shared Redis Chatbot Config Cache (120s TTL) ──
+const CHATBOT_CONFIG_TTL = 120; // 120 seconds
 
 async function getCachedChatbot(chatbotId: string, tenantId: string) {
-  const key = `${chatbotId}:${tenantId}`;
-  const cached = chatbotConfigCache.get(key);
-  if (cached && Date.now() - cached.timestamp < CHATBOT_CACHE_TTL) {
-    return cached.data;
+  const cacheKey = `cache:chatbot_config:${tenantId}:${chatbotId}`;
+
+  try {
+    const cached = await redisGet<any>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  } catch {
+    // Redis error handled gracefully below
   }
+
   const chatbot = await prisma.chatbot.findUnique({
     where: { id: chatbotId, tenantId },
   });
+
   if (chatbot) {
-    chatbotConfigCache.set(key, { data: chatbot, timestamp: Date.now() });
+    redisSet(cacheKey, chatbot, CHATBOT_CONFIG_TTL).catch(() => {});
   }
+
   return chatbot;
 }
 
-/** Invalidate chatbot config cache (call when chatbot settings are updated) */
-export function invalidateChatbotConfigCache(chatbotId: string, tenantId: string) {
-  chatbotConfigCache.delete(`${chatbotId}:${tenantId}`);
+/** Invalidate chatbot config cache across all nodes (call when chatbot settings are updated) */
+export async function invalidateChatbotConfigCache(chatbotId: string, tenantId: string): Promise<void> {
+  const cacheKey = `cache:chatbot_config:${tenantId}:${chatbotId}`;
+  await redisDel(cacheKey);
 }
 
 /**
@@ -173,7 +180,10 @@ export async function createChatCompletion(config: ChatConfig) {
       const ragContext = await retrieveContext(
         chatbotId,
         lastUserMessage.content,
-        embeddingKey
+        embeddingKey,
+        5,
+        0.3,
+        tenantId
       );
 
       if (ragContext.augmentedPrompt) {

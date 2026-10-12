@@ -1,4 +1,5 @@
 import prisma from "./prisma";
+import { redisGet, redisSet, redisDel } from "@/lib/redis/client";
 
 export interface ChatbotTenantInfo {
   tenantId: string;
@@ -6,28 +7,37 @@ export interface ChatbotTenantInfo {
   widgetConfig: any;
 }
 
-// Global cache object to persist across hot reloads in Next.js development mode
-const globalCache = globalThis as unknown as {
-  chatbotTenantCache: Map<string, ChatbotTenantInfo> | undefined;
-};
+const CHATBOT_CACHE_TTL_SECONDS = 300; // 5 minutes
 
-export const chatbotTenantCache = globalCache.chatbotTenantCache ?? new Map<string, ChatbotTenantInfo>();
-
-if (process.env.NODE_ENV !== "production") {
-  globalCache.chatbotTenantCache = chatbotTenantCache;
-}
+// Bounded local fallback cache (used only if Redis is unavailable)
+const localFallbackMap = new Map<string, { data: ChatbotTenantInfo; expiresAt: number }>();
 
 /**
- * Resolve tenantId, status, and widgetConfig for a chatbotId using the cache if available.
+ * Resolves tenantId, status, and widgetConfig for a chatbotId using shared Redis caching.
+ * Falls back to bounded local memory if Redis is unavailable.
  */
 export async function getChatbotTenant(chatbotId: string): Promise<ChatbotTenantInfo | null> {
   if (!chatbotId) return null;
 
-  const cached = chatbotTenantCache.get(chatbotId);
-  if (cached) {
-    return cached;
+  const cacheKey = `cache:chatbot:${chatbotId}`;
+
+  // 1. Try Shared Redis Cache
+  try {
+    const cached = await redisGet<ChatbotTenantInfo>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  } catch {
+    // Redis error handled gracefully below
   }
 
+  // 2. Check Local Fallback (if Redis is down or warming up)
+  const localHit = localFallbackMap.get(chatbotId);
+  if (localHit && localHit.expiresAt > Date.now()) {
+    return localHit.data;
+  }
+
+  // 3. Database Lookup
   const chatbot = await prisma.chatbot.findUnique({
     where: { id: chatbotId },
     select: { tenantId: true, status: true, widgetConfig: true },
@@ -40,13 +50,27 @@ export async function getChatbotTenant(chatbotId: string): Promise<ChatbotTenant
     status: chatbot.status,
     widgetConfig: chatbot.widgetConfig,
   };
-  chatbotTenantCache.set(chatbotId, data);
+
+  // 4. Save to Shared Redis Cache (asynchronous write)
+  redisSet(cacheKey, data, CHATBOT_CACHE_TTL_SECONDS).catch(() => {});
+
+  // Update short-lived local fallback (30s)
+  localFallbackMap.set(chatbotId, {
+    data,
+    expiresAt: Date.now() + 30_000,
+  });
+
   return data;
 }
 
 /**
- * Invalidate cache entry (e.g. when chatbot status or settings are updated).
+ * Invalidate cache entry across all cluster nodes via Redis.
+ * Called when chatbot status, widget config, or settings are updated.
  */
-export function invalidateChatbotCache(chatbotId: string) {
-  chatbotTenantCache.delete(chatbotId);
+export async function invalidateChatbotCache(chatbotId: string): Promise<void> {
+  if (!chatbotId) return;
+
+  localFallbackMap.delete(chatbotId);
+  const cacheKey = `cache:chatbot:${chatbotId}`;
+  await redisDel(cacheKey);
 }
