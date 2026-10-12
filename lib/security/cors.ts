@@ -1,154 +1,263 @@
 import { NextResponse } from "next/server";
 
+// Ensure this utility is strictly server-only
+if (typeof window !== "undefined") {
+  throw new Error("Security alert: lib/security/cors cannot be bundled on the client.");
+}
+
+export interface DomainValidationResult {
+  allowed: boolean;
+  origin: string | null;
+  hostname: string | null;
+  reason?: string;
+}
+
 /**
- * Extracts and normalizes hostname from an Origin, Referer, or URL string.
- * Example: "https://shop.example.com:3000/embed" -> "shop.example.com"
+ * Robustly normalizes and extracts hostname from an Origin, Referer, or domain string.
+ * Handles:
+ * - Trailing dots (FQDN): "example.com." -> "example.com"
+ * - Ports: "example.com:8080" -> "example.com"
+ * - Schemes: "https://shop.example.com/path" -> "shop.example.com"
+ * - Case normalization: "EXAMPLE.COM" -> "example.com"
+ * - Malformed input / unsafe URL patterns: returns null
  */
-export function extractHostname(urlOrOrigin: string | null | undefined): string | null {
-  if (!urlOrOrigin) return null;
+export function normalizeHostname(input: string | null | undefined): string | null {
+  if (!input || typeof input !== "string") return null;
+
+  const trimmed = input.trim().toLowerCase();
+  if (!trimmed) return null;
+
+  // Reject unsafe schemes / patterns
+  if (
+    trimmed.startsWith("javascript:") ||
+    trimmed.startsWith("data:") ||
+    trimmed.startsWith("vbscript:") ||
+    trimmed.includes("<") ||
+    trimmed.includes(">") ||
+    trimmed.includes(" ")
+  ) {
+    return null;
+  }
 
   try {
-    const trimmed = urlOrOrigin.trim();
-    // Add protocol if missing to parse via URL API
-    const withProtocol = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-      ? trimmed
-      : `https://${trimmed}`;
+    const withScheme =
+      trimmed.startsWith("http://") || trimmed.startsWith("https://")
+        ? trimmed
+        : `https://${trimmed}`;
 
-    const parsed = new URL(withProtocol);
-    return parsed.hostname.toLowerCase();
+    const parsed = new URL(withScheme);
+    let host = parsed.hostname.toLowerCase();
+
+    // Remove trailing dots (DNS root reference)
+    host = host.replace(/\.+$/, "");
+
+    // Basic validity check: must contain at least one dot or be localhost
+    if (host !== "localhost" && !host.includes(".")) {
+      return null;
+    }
+
+    return host || null;
   } catch {
-    // Fallback: strip protocol and path manually
-    const stripped = urlOrOrigin
-      .replace(/^https?:\/\//i, "")
-      .split("/")[0]
-      .split(":")[0]
-      .trim()
-      .toLowerCase();
-    return stripped || null;
+    return null;
   }
 }
 
+/** Backward-compatible alias for normalizeHostname */
+export const extractHostname = normalizeHostname;
+
 /**
- * Parses allowed domains from widgetConfig.allowedDomains.
- * Supports string array (["a.com", "b.com"]) or comma-separated string ("a.com, b.com").
+ * Parses and sanitizes allowed domains from chatbot.widgetConfig.allowedDomains.
+ * Rejects invalid patterns, empty strings, and unsafe schemes.
  */
-export function parseAllowedDomains(
-  allowedDomains: unknown
-): string[] {
-  if (!allowedDomains) return [];
+export function parseAllowedDomains(allowedDomainsConfig: unknown): string[] {
+  if (!allowedDomainsConfig) return [];
 
-  if (Array.isArray(allowedDomains)) {
-    return allowedDomains
-      .map((d) => String(d).trim().toLowerCase())
-      .filter(Boolean);
+  let rawList: string[] = [];
+
+  if (Array.isArray(allowedDomainsConfig)) {
+    rawList = allowedDomainsConfig.map((d) => String(d).trim());
+  } else if (typeof allowedDomainsConfig === "string") {
+    rawList = allowedDomainsConfig.split(",").map((d) => d.trim());
   }
 
-  if (typeof allowedDomains === "string") {
-    return allowedDomains
-      .split(",")
-      .map((d) => d.trim().toLowerCase())
-      .filter(Boolean);
+  const cleaned: string[] = [];
+  for (const item of rawList) {
+    if (!item) continue;
+
+    // Check wildcard prefix
+    if (item.startsWith("*.")) {
+      const base = normalizeHostname(item.slice(2));
+      if (base) cleaned.push(`*.${base}`);
+      continue;
+    }
+
+    // Single wildcard '*'
+    if (item === "*") {
+      cleaned.push("*");
+      continue;
+    }
+
+    const host = normalizeHostname(item);
+    if (host) {
+      cleaned.push(host);
+    }
   }
 
-  return [];
+  return cleaned;
 }
 
 /**
- * Validates whether an incoming request's Origin or Referer is permitted for this chatbot.
+ * Validates whether an incoming HTTP request's Origin or Referer is permitted
+ * to interact with a specific chatbot.
  *
  * Rules:
- * 1. If no allowed domains are configured (empty or contains '*'), all origins are permitted.
- * 2. In non-production environments (development), localhost & 127.0.0.1 are always permitted.
+ * 1. If allowedDomains is empty or contains "*", all origins are permitted.
+ * 2. In non-production (development), localhost & 127.0.0.1 are always permitted.
  * 3. The platform's own domain (NEXT_PUBLIC_APP_URL) is always permitted for dashboard previews.
- * 4. Subdomains are supported (e.g. "*.example.com" or "example.com" allows "shop.example.com").
+ * 4. Exact domain matches (e.g., "customer.com").
+ * 5. Wildcard subdomains (e.g., "*.customer.com" matches "app.customer.com" and "customer.com").
+ * 6. Production requires HTTPS on remote origins.
  */
 export function isDomainAllowed(
   req: Request,
   allowedDomainsConfig: unknown
-): { allowed: boolean; origin: string | null; hostname: string | null } {
+): DomainValidationResult {
   const originHeader = req.headers.get("origin");
   const refererHeader = req.headers.get("referer");
   const hostHeader = req.headers.get("host");
 
   const effectiveSource = originHeader || refererHeader;
-  const hostname = extractHostname(effectiveSource);
+  const sourceHostname = normalizeHostname(effectiveSource);
 
-  // Parse configured allowed domains
-  const allowedList = parseAllowedDomains(allowedDomainsConfig);
-
-  // If no allowed domains specified, unrestricted access is granted
-  if (allowedList.length === 0 || allowedList.includes("*")) {
-    return { allowed: true, origin: originHeader, hostname };
-  }
-
-  // Same-origin dashboard preview check (always allowed)
-  const appHost = extractHostname(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL);
-  const currentHost = extractHostname(hostHeader);
-  if (hostname && (hostname === appHost || hostname === currentHost)) {
-    return { allowed: true, origin: originHeader, hostname };
-  }
-
-  // Localhost development exemption
-  if (process.env.NODE_ENV !== "production") {
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return { allowed: true, origin: originHeader, hostname };
+  // In production, require HTTPS on incoming Origin if present (except localhost)
+  if (process.env.NODE_ENV === "production" && originHeader) {
+    if (originHeader.startsWith("http://") && !originHeader.includes("localhost") && !originHeader.includes("127.0.0.1")) {
+      return {
+        allowed: false,
+        origin: null,
+        hostname: sourceHostname,
+        reason: "Insecure HTTP origin rejected. Embedded widgets in production require HTTPS.",
+      };
     }
   }
 
-  // If strict allowed domains are set, but request has no Origin or Referer header
-  if (!hostname) {
-    // Disallow unverified cross-origin direct calls if restrictions are configured
-    return { allowed: false, origin: originHeader, hostname: null };
+  const allowedList = parseAllowedDomains(allowedDomainsConfig);
+
+  // 1. Unrestricted mode (empty config or explicit "*")
+  if (allowedList.length === 0 || allowedList.includes("*")) {
+    return {
+      allowed: true,
+      origin: originHeader,
+      hostname: sourceHostname,
+    };
   }
 
-  // Check matching against allowed domains list
-  const matches = allowedList.some((allowedDomain) => {
-    const cleanAllowed = allowedDomain.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0];
+  // 2. Same-origin platform dashboard preview (always permitted)
+  const appHost = normalizeHostname(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL);
+  const currentHost = normalizeHostname(hostHeader);
+  if (sourceHostname && (sourceHostname === appHost || sourceHostname === currentHost)) {
+    return {
+      allowed: true,
+      origin: originHeader,
+      hostname: sourceHostname,
+    };
+  }
 
-    // Exact match
-    if (hostname === cleanAllowed) {
+  // 3. Localhost development exemption
+  if (process.env.NODE_ENV !== "production") {
+    if (sourceHostname === "localhost" || sourceHostname === "127.0.0.1") {
+      return {
+        allowed: true,
+        origin: originHeader,
+        hostname: sourceHostname,
+      };
+    }
+  }
+
+  // 4. Missing Origin/Referer header when strict allowed domains are configured
+  if (!sourceHostname) {
+    return {
+      allowed: false,
+      origin: null,
+      hostname: null,
+      reason: "Request origin missing or unverified.",
+    };
+  }
+
+  // 5. Match against configured allowed domains
+  const isMatch = allowedList.some((allowedPattern) => {
+    // Exact hostname match
+    if (sourceHostname === allowedPattern) {
       return true;
     }
 
-    // Wildcard prefix match: "*.example.com" or ".example.com"
-    if (cleanAllowed.startsWith("*.")) {
-      const baseDomain = cleanAllowed.slice(2);
-      return hostname === baseDomain || hostname.endsWith(`.${baseDomain}`);
+    // Wildcard match ("*.example.com")
+    if (allowedPattern.startsWith("*.")) {
+      const baseDomain = allowedPattern.slice(2);
+      return sourceHostname === baseDomain || sourceHostname.endsWith(`.${baseDomain}`);
     }
 
-    if (cleanAllowed.startsWith(".")) {
-      const baseDomain = cleanAllowed.slice(1);
-      return hostname === baseDomain || hostname.endsWith(`.${baseDomain}`);
-    }
-
-    // Default: also match subdomains of the allowed domain (e.g. shop.domain.com for domain.com)
-    if (hostname.endsWith(`.${cleanAllowed}`)) {
+    // Default subdomain matching: "example.com" also covers "shop.example.com"
+    if (sourceHostname.endsWith(`.${allowedPattern}`)) {
       return true;
     }
 
     return false;
   });
 
-  return { allowed: matches, origin: originHeader, hostname };
-}
+  if (!isMatch) {
+    return {
+      allowed: false,
+      origin: null, // Do not reflect unauthorized origin
+      hostname: sourceHostname,
+      reason: `Domain '${sourceHostname}' is not in the chatbot's authorized domain allowlist.`,
+    };
+  }
 
-/**
- * Generates CORS headers for responses.
- */
-export function getCorsHeaders(origin: string | null): Record<string, string> {
   return {
-    "Access-Control-Allow-Origin": origin || "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PATCH, DELETE",
-    "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, X-Requested-With, X-Chatbot-Id, X-Conversation-Id",
-    "Access-Control-Max-Age": "86400",
+    allowed: true,
+    origin: originHeader,
+    hostname: sourceHostname,
   };
 }
 
 /**
- * Handles HTTP OPTIONS preflight request.
+ * Returns CORS headers tailored specifically for an authorized origin.
+ * Never reflects arbitrary origins.
  */
-export function handleCorsPreflight(req: Request): NextResponse {
+export function getCorsHeaders(validatedOrigin: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PATCH, DELETE",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Requested-With, X-Chatbot-Id, X-Conversation-Id",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  };
+
+  if (validatedOrigin) {
+    headers["Access-Control-Allow-Origin"] = validatedOrigin;
+    headers["Access-Control-Allow-Credentials"] = "true";
+  }
+
+  return headers;
+}
+
+/**
+ * Handles HTTP OPTIONS CORS preflight requests.
+ */
+export function handleCorsPreflight(req: Request, allowedDomainsConfig?: unknown): NextResponse {
+  // If allowedDomainsConfig is provided, validate origin during preflight
+  if (allowedDomainsConfig !== undefined) {
+    const check = isDomainAllowed(req, allowedDomainsConfig);
+    if (!check.allowed) {
+      return new NextResponse(null, { status: 403 });
+    }
+    return new NextResponse(null, {
+      status: 204,
+      headers: getCorsHeaders(check.origin),
+    });
+  }
+
   const origin = req.headers.get("origin");
   return new NextResponse(null, {
     status: 204,

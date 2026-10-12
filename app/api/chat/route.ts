@@ -2,15 +2,16 @@ import { createChatCompletion } from "@/lib/ai/chat";
 import prisma from "@/lib/db/prisma";
 import { getChatbotTenant } from "@/lib/db/cache";
 import {
-  checkRateLimit,
+  checkMultiTierRateLimits,
   createRateLimitResponse,
-  RATE_LIMITS,
+  acquireConcurrencySlot,
 } from "@/lib/security/rate-limit";
 import {
   isDomainAllowed,
   getCorsHeaders,
   handleCorsPreflight,
 } from "@/lib/security/cors";
+import { checkTenantQuota } from "@/lib/security/quota";
 
 /** Handle CORS OPTIONS preflight */
 export async function OPTIONS(req: Request) {
@@ -19,7 +20,6 @@ export async function OPTIONS(req: Request) {
 
 /** Extract text from a UIMessage's parts array (AI SDK v6 format) */
 function extractText(message: { role: string; content?: string; parts?: Array<{ type: string; text?: string }> }): string {
-  // Support both v6 parts format and legacy content format
   if (message.parts && Array.isArray(message.parts)) {
     return message.parts
       .filter((p) => p.type === "text" && p.text)
@@ -29,53 +29,154 @@ function extractText(message: { role: string; content?: string; parts?: Array<{ 
   return message.content || "";
 }
 
+const MAX_MESSAGES_COUNT = 50;
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_TOTAL_CHARS = 32000;
+
 export async function POST(req: Request) {
+  let concurrencySlot: { acquired: boolean; release: () => void } | null = null;
+
   try {
-    // ── 1. Rate Limiting Check ──
-    const rateLimit = checkRateLimit(req, RATE_LIMITS.CHAT);
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const { chatbotId, messages, conversationId, visitorId, visitorName, visitorLocation, mode, language } = body;
+
+    // ── 1. Input Validation & Request Size Limits ──
+    if (!chatbotId || typeof chatbotId !== "string" || !messages || !Array.isArray(messages)) {
+      return new Response(
+        JSON.stringify({ error: "Missing or invalid chatbotId or messages array" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    if (messages.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Messages array cannot be empty" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    if (messages.length > MAX_MESSAGES_COUNT) {
+      return new Response(
+        JSON.stringify({ error: `Message history exceeds limit of ${MAX_MESSAGES_COUNT} messages.` }),
+        { status: 413, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    let totalChars = 0;
+    for (const msg of messages) {
+      const text = extractText(msg);
+      if (text.length > MAX_MESSAGE_LENGTH) {
+        return new Response(
+          JSON.stringify({ error: `Individual message exceeds character limit of ${MAX_MESSAGE_LENGTH}.` }),
+          { status: 413, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      totalChars += text.length;
+    }
+
+    if (totalChars > MAX_TOTAL_CHARS) {
+      return new Response(
+        JSON.stringify({ error: `Total conversation context exceeds limit of ${MAX_TOTAL_CHARS} characters.` }),
+        { status: 413, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── 2. Multi-Tier Rate Limiting (Visitor + IP + Chatbot) ──
+    const rateLimit = await checkMultiTierRateLimits(req, {
+      endpoint: "chat",
+      chatbotId,
+      visitorId,
+    });
+
     if (!rateLimit.success) {
       return createRateLimitResponse(rateLimit);
     }
 
-    const body = await req.json();
-    const { chatbotId, messages, conversationId, visitorId, visitorName, visitorLocation, mode, language } = body;
-
-    if (!chatbotId || !messages || !Array.isArray(messages)) {
-      return new Response("Missing chatbotId or messages", { status: 400 });
-    }
-
-    // ── Parallel: Verify chatbot + create visitor simultaneously ──
+    // ── 3. Chatbot Verification & Tenant Lookup ──
     const needsVisitor = !visitorId && (visitorName || visitorLocation);
     const [chatbot, visitor] = await Promise.all([
       getChatbotTenant(chatbotId),
       needsVisitor
         ? prisma.visitor.create({
-          data: {
-            name: visitorName || null,
-            metadata: visitorLocation ? { location: visitorLocation } : undefined,
-          },
-        })
+            data: {
+              name: visitorName || null,
+              metadata: visitorLocation ? { location: visitorLocation } : undefined,
+            },
+          })
         : Promise.resolve(null),
     ]);
 
     if (!chatbot) {
-      return new Response("Chatbot not found", { status: 404 });
+      return new Response(
+        JSON.stringify({ error: "Chatbot not found" }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     if (chatbot.status !== "ACTIVE") {
-      return new Response("Chatbot is not active", { status: 403 });
+      return new Response(
+        JSON.stringify({ error: "Chatbot is currently inactive" }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    // ── 2. Allowed Domains / CORS Restriction ──
+    // ── 4. Allowed Domains & Strict CORS Validation ──
     const domainCheck = isDomainAllowed(req, chatbot.widgetConfig?.allowedDomains);
     if (!domainCheck.allowed) {
       return new Response(
         JSON.stringify({
           error: "Forbidden",
-          message: `Domain '${domainCheck.hostname || "unknown"}' is not authorized to use this chatbot.`,
+          message: domainCheck.reason || `Domain '${domainCheck.hostname || "unknown"}' is not authorized.`,
         }),
         {
           status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            // Never grant CORS headers to unauthorized domains
+          },
+        }
+      );
+    }
+
+    // ── 5. In-Flight Concurrency Limiting (Max 10 per chatbot) ──
+    concurrencySlot = acquireConcurrencySlot(`chat:${chatbotId}`, 10);
+    if (!concurrencySlot.acquired) {
+      return new Response(
+        JSON.stringify({
+          error: "Too Many Requests",
+          message: "Chatbot is processing maximum concurrent requests. Please wait a moment.",
+        }),
+        {
+          status: 429,
+          headers: {
+            "Retry-After": "5",
+            "Content-Type": "application/json",
+            ...getCorsHeaders(domainCheck.origin),
+          },
+        }
+      );
+    }
+
+    // ── 6. Cost Protection & Monthly Tenant Quota Check ──
+    const quotaCheck = await checkTenantQuota(chatbot.tenantId);
+    if (!quotaCheck.allowed) {
+      concurrencySlot.release();
+      return new Response(
+        JSON.stringify({
+          error: "Quota Exceeded",
+          message: quotaCheck.reason,
+        }),
+        {
+          status: quotaCheck.status || 402,
           headers: {
             "Content-Type": "application/json",
             ...getCorsHeaders(domainCheck.origin),
@@ -119,13 +220,13 @@ export async function POST(req: Request) {
             ? await prisma.visitor.findUnique({
                 where: { id: resolvedVisitorId },
                 select: { firstSeenAt: true },
-              }).then(v => {
+              }).then((v) => {
                 if (!v) return true;
                 const firstSeen = new Date(v.firstSeenAt);
                 firstSeen.setHours(0, 0, 0, 0);
                 return firstSeen.getTime() === today.getTime();
               })
-            : true; // Anonymous = new
+            : true;
 
           await prisma.dailyStats.upsert({
             where: {
@@ -173,8 +274,16 @@ export async function POST(req: Request) {
     for (const [k, v] of Object.entries(corsHeaders)) {
       response.headers.set(k, v);
     }
+
+    // Release concurrency slot
+    concurrencySlot.release();
+
     return response;
   } catch (error) {
+    if (concurrencySlot) {
+      concurrencySlot.release();
+    }
+
     console.error("[CHAT_API]", error);
     const message = error instanceof Error ? error.message : "Internal Server Error";
     return new Response(JSON.stringify({ error: message }), {

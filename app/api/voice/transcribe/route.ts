@@ -3,15 +3,16 @@ import prisma from "@/lib/db/prisma";
 import { getChatbotTenant } from "@/lib/db/cache";
 import { getSystemPricingRates, calculateVoiceCost } from "@/lib/ai/providers";
 import {
-  checkRateLimit,
+  checkMultiTierRateLimits,
   createRateLimitResponse,
-  RATE_LIMITS,
+  acquireConcurrencySlot,
 } from "@/lib/security/rate-limit";
 import {
   isDomainAllowed,
   getCorsHeaders,
   handleCorsPreflight,
 } from "@/lib/security/cors";
+import { checkTenantQuota } from "@/lib/security/quota";
 
 /** Handle CORS OPTIONS preflight */
 export async function OPTIONS(req: Request) {
@@ -39,12 +40,7 @@ const LANGUAGE_MAP: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
-  // ── 1. Rate Limiting Check ──
-  const rateLimit = checkRateLimit(req, RATE_LIMITS.VOICE_STT);
-  if (!rateLimit.success) {
-    return createRateLimitResponse(rateLimit);
-  }
-
+  let concurrencySlot: { acquired: boolean; release: () => void } | null = null;
   const apiKey = process.env.SARVAM_API_KEY;
   const openaiApiKey = process.env.OPENAI_API_KEY;
 
@@ -56,24 +52,66 @@ export async function POST(req: NextRequest) {
     const conversationId = (formData.get("conversationId") as string) || null;
     const duration = parseFloat((formData.get("duration") as string) || "0") || 0;
 
-    // ── 2. Allowed Domains Check (if chatbotId provided) ──
+    // ── 1. Multi-Tier Rate Limiting Check (Visitor + IP + Chatbot) ──
+    const rateLimit = await checkMultiTierRateLimits(req, {
+      endpoint: "voice_stt",
+      chatbotId,
+    });
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit);
+    }
+
+    // ── 2. Chatbot Verification & Allowed Domains Check ──
     if (chatbotId) {
       const chatbot = await getChatbotTenant(chatbotId);
       if (chatbot) {
+        if (chatbot.status !== "ACTIVE") {
+          return NextResponse.json({ error: "Chatbot is inactive" }, { status: 403 });
+        }
+
         const domainCheck = isDomainAllowed(req, chatbot.widgetConfig?.allowedDomains);
         if (!domainCheck.allowed) {
           return NextResponse.json(
-            { error: `Domain '${domainCheck.hostname || "unknown"}' is not authorized to use this chatbot.` },
-            { status: 403, headers: getCorsHeaders(domainCheck.origin) }
+            { error: domainCheck.reason || `Domain '${domainCheck.hostname || "unknown"}' is not authorized.` },
+            { status: 403 }
+          );
+        }
+
+        // ── 3. Tenant Quota Check ──
+        const quota = await checkTenantQuota(chatbot.tenantId);
+        if (!quota.allowed) {
+          return NextResponse.json(
+            { error: "Quota Exceeded", message: quota.reason },
+            { status: quota.status || 402, headers: getCorsHeaders(domainCheck.origin) }
           );
         }
       }
     }
 
+    // ── 4. Concurrency Protection (Max 5 parallel STT calls) ──
+    concurrencySlot = acquireConcurrencySlot(`stt:${chatbotId || "global"}`, 5);
+    if (!concurrencySlot.acquired) {
+      return NextResponse.json(
+        { error: "Voice transcription service is currently busy. Please retry shortly." },
+        { status: 429, headers: { "Retry-After": "3" } }
+      );
+    }
+
+    // ── 5. Input Validation & Request Size Limits ──
     if (!audioFile) {
+      concurrencySlot.release();
       return NextResponse.json(
         { error: "No audio file provided" },
         { status: 400, headers: getCorsHeaders(req.headers.get("origin")) }
+      );
+    }
+
+    // Max 10MB audio file
+    if (audioFile.size > 10 * 1024 * 1024) {
+      concurrencySlot.release();
+      return NextResponse.json(
+        { error: "Audio file exceeds maximum size limit of 10MB" },
+        { status: 413, headers: getCorsHeaders(req.headers.get("origin")) }
       );
     }
 
@@ -166,6 +204,10 @@ export async function POST(req: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
+  } finally {
+    if (concurrencySlot) {
+      concurrencySlot.release();
+    }
   }
 }
 
