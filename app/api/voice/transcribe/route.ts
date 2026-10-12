@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
 import { getChatbotTenant } from "@/lib/db/cache";
 import { getSystemPricingRates, calculateVoiceCost } from "@/lib/ai/providers";
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  RATE_LIMITS,
+} from "@/lib/security/rate-limit";
+import {
+  isDomainAllowed,
+  getCorsHeaders,
+  handleCorsPreflight,
+} from "@/lib/security/cors";
+
+/** Handle CORS OPTIONS preflight */
+export async function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
 
 // Language code mapping: short code → BCP-47 locale for Sarvam AI
 const LANGUAGE_MAP: Record<string, string> = {
@@ -24,6 +39,12 @@ const LANGUAGE_MAP: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
+  // ── 1. Rate Limiting Check ──
+  const rateLimit = checkRateLimit(req, RATE_LIMITS.VOICE_STT);
+  if (!rateLimit.success) {
+    return createRateLimitResponse(rateLimit);
+  }
+
   const apiKey = process.env.SARVAM_API_KEY;
   const openaiApiKey = process.env.OPENAI_API_KEY;
 
@@ -35,10 +56,24 @@ export async function POST(req: NextRequest) {
     const conversationId = (formData.get("conversationId") as string) || null;
     const duration = parseFloat((formData.get("duration") as string) || "0") || 0;
 
+    // ── 2. Allowed Domains Check (if chatbotId provided) ──
+    if (chatbotId) {
+      const chatbot = await getChatbotTenant(chatbotId);
+      if (chatbot) {
+        const domainCheck = isDomainAllowed(req, chatbot.widgetConfig?.allowedDomains);
+        if (!domainCheck.allowed) {
+          return NextResponse.json(
+            { error: `Domain '${domainCheck.hostname || "unknown"}' is not authorized to use this chatbot.` },
+            { status: 403, headers: getCorsHeaders(domainCheck.origin) }
+          );
+        }
+      }
+    }
+
     if (!audioFile) {
       return NextResponse.json(
         { error: "No audio file provided" },
-        { status: 400 }
+        { status: 400, headers: getCorsHeaders(req.headers.get("origin")) }
       );
     }
 

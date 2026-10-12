@@ -32,6 +32,7 @@ import {
   Layers,
   Info,
   Globe,
+  Shield,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -237,6 +238,12 @@ export default function ChatbotEditor({
   });
   const [botIconUrl, setBotIconUrl] = useState(chatbot.widgetConfig?.botIconUrl || "");
   const [backgroundImageUrl, setBackgroundImageUrl] = useState(chatbot.widgetConfig?.backgroundImageUrl || "");
+  const [allowedDomains, setAllowedDomains] = useState<string>(() => {
+    const raw = chatbot.widgetConfig?.allowedDomains;
+    if (Array.isArray(raw)) return (raw as string[]).join(", ");
+    if (typeof raw === "string") return raw;
+    return "";
+  });
   const [supportedLanguages, setSupportedLanguages] = useState<string[]>(chatbot.supportedLanguages || ["en"]);
 
   const availableLanguages = [
@@ -495,6 +502,10 @@ export default function ChatbotEditor({
             ...(chatbot.widgetConfig || {}),
             botIconUrl,
             backgroundImageUrl,
+            allowedDomains: allowedDomains
+              .split(",")
+              .map((d) => d.trim().toLowerCase())
+              .filter(Boolean),
           },
           leadCaptureEnabled,
           leadCaptureFields: { fields: leadFields, scoringRules },
@@ -1379,6 +1390,27 @@ export default function ChatbotEditor({
                     Adds a watermark background image. Auto-styled with a subtle overlay blur and low opacity.
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Allowed Domains & Security */}
+            <div className="border-t border-[var(--border-primary)] pt-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-[var(--brand-purple)]" />
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Domain Restrictions & CORS Security</h3>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[var(--text-secondary)]">Allowed Embedding Domains</label>
+                <input
+                  type="text"
+                  placeholder="e.g. mystore.com, app.example.com (leave blank for unrestricted)"
+                  value={allowedDomains}
+                  onChange={(e) => setAllowedDomains(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-[var(--bg-tertiary)] border border-[var(--border-primary)] text-[var(--text-primary)] outline-none focus:border-[var(--brand-purple)] focus:ring-2 focus:ring-[var(--brand-purple)]/20 transition-all font-mono"
+                />
+                <p className="text-[10px] text-[var(--text-tertiary)] leading-relaxed">
+                  Restrict which websites are allowed to embed this widget and call the AI consultation endpoints. Comma-separated. Supports wildcards (e.g. <code>*.mystore.com</code>). Leave empty to allow any website.
+                </p>
               </div>
             </div>
 

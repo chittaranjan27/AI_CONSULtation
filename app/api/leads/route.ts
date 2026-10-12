@@ -3,6 +3,21 @@ import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { getChatbotTenant } from "@/lib/db/cache";
 import { LeadStatus } from "@prisma/client";
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  RATE_LIMITS,
+} from "@/lib/security/rate-limit";
+import {
+  isDomainAllowed,
+  getCorsHeaders,
+  handleCorsPreflight,
+} from "@/lib/security/cors";
+
+/** Handle CORS OPTIONS preflight */
+export async function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +27,12 @@ export async function POST(req: Request) {
     let tenantId: string;
 
     if (chatbotId) {
+      // ── Rate Limiting for Public Widget Lead Submissions ──
+      const rateLimit = checkRateLimit(req, RATE_LIMITS.LEADS);
+      if (!rateLimit.success) {
+        return createRateLimitResponse(rateLimit);
+      }
+
       // Public widget submission: resolve tenantId from chatbotId
       const chatbot = await getChatbotTenant(chatbotId);
       if (!chatbot) {
@@ -20,6 +41,16 @@ export async function POST(req: Request) {
       if (chatbot.status !== "ACTIVE") {
         return new NextResponse("Chatbot is not active", { status: 403 });
       }
+
+      // ── Allowed Domains Verification ──
+      const domainCheck = isDomainAllowed(req, chatbot.widgetConfig?.allowedDomains);
+      if (!domainCheck.allowed) {
+        return NextResponse.json(
+          { error: `Domain '${domainCheck.hostname || "unknown"}' is not authorized to submit leads for this chatbot.` },
+          { status: 403, headers: getCorsHeaders(domainCheck.origin) }
+        );
+      }
+
       tenantId = chatbot.tenantId;
 
       // Validate required fields for widget submissions (name and location are required)

@@ -4,6 +4,7 @@ import { getAIModel, calculateCost, getSystemPricingRates, type AIProviderType }
 import { retrieveContext } from "./rag";
 import prisma from "@/lib/db/prisma";
 import { Prisma } from "@prisma/client";
+import { decryptApiKey } from "@/lib/security/encryption";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -125,7 +126,7 @@ export async function createChatCompletion(config: ChatConfig) {
     );
   }
 
-  const apiKey = apiKeyRecord.encryptedKey; // In production, decrypt this
+  const apiKey = decryptApiKey(apiKeyRecord.encryptedKey);
 
   // Parse conversation metadata
   let currentStep = 1;
@@ -166,7 +167,9 @@ export async function createChatCompletion(config: ChatConfig) {
   if (needsRAG && lastUserMessage) {
     try {
       // Use pre-fetched OpenAI key for embeddings (no extra DB query)
-      const embeddingKey = openaiKeyRecord?.encryptedKey || apiKey;
+      const embeddingKey = openaiKeyRecord?.encryptedKey
+        ? decryptApiKey(openaiKeyRecord.encryptedKey)
+        : apiKey;
       const ragContext = await retrieveContext(
         chatbotId,
         lastUserMessage.content,

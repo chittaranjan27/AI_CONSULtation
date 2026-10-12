@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
+import { encryptApiKey, maskApiKey } from "@/lib/security/encryption";
 
 export async function GET() {
   try {
@@ -28,12 +29,10 @@ export async function GET() {
       },
     });
 
-    // Mask API keys for security
+    // Mask API keys for security (auto-decrypts if encrypted)
     const maskedKeys = keys.map((key) => ({
       ...key,
-      encryptedKey: key.encryptedKey
-        ? `${key.encryptedKey.slice(0, 8)}...${key.encryptedKey.slice(-4)}`
-        : "",
+      encryptedKey: maskApiKey(key.encryptedKey),
     }));
 
     return NextResponse.json(maskedKeys);
@@ -62,6 +61,8 @@ export async function POST(req: Request) {
       return new NextResponse("Missing provider or apiKey", { status: 400 });
     }
 
+    const secureEncryptedKey = encryptApiKey(apiKey.trim());
+
     // Upsert the key (one per provider per tenant)
     const key = await prisma.tenantApiKey.upsert({
       where: {
@@ -71,14 +72,14 @@ export async function POST(req: Request) {
         },
       },
       update: {
-        encryptedKey: apiKey, // In production, encrypt this
+        encryptedKey: secureEncryptedKey,
         label: label || provider,
         isActive: true,
       },
       create: {
         tenantId: session.user.tenantId,
         provider,
-        encryptedKey: apiKey,
+        encryptedKey: secureEncryptedKey,
         label: label || provider,
       },
     });

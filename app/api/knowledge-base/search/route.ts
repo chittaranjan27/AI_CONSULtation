@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import prisma from "@/lib/db/prisma";
 import { retrieveContext } from "@/lib/ai/rag";
+import { decryptApiKey } from "@/lib/security/encryption";
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +31,9 @@ export async function POST(req: NextRequest) {
     });
 
     // Default to environment key if tenant hasn't set their own
-    const embeddingApiKey = openaiKey?.encryptedKey || process.env.OPENAI_API_KEY;
+    const embeddingApiKey = openaiKey?.encryptedKey
+      ? decryptApiKey(openaiKey.encryptedKey)
+      : process.env.OPENAI_API_KEY;
 
     if (!embeddingApiKey) {
       return NextResponse.json(

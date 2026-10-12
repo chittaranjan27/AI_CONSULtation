@@ -4,6 +4,7 @@ import prisma from "@/lib/db/prisma";
 import { chunkText } from "@/lib/ai/chunker";
 import { generateEmbeddings } from "@/lib/ai/embeddings";
 import { invalidateRAGCache } from "@/lib/ai/rag";
+import { decryptApiKey } from "@/lib/security/encryption";
 import * as pdfParse from "pdf-parse";
 import * as xlsx from "xlsx";
 
@@ -116,7 +117,8 @@ export async function POST(req: Request) {
     }
 
     const chunkTexts = chunks.map((c) => c.content);
-    const embeddings = await generateEmbeddings(chunkTexts, apiKeyRecord.encryptedKey);
+    const plainEmbeddingKey = decryptApiKey(apiKeyRecord.encryptedKey);
+    const embeddings = await generateEmbeddings(chunkTexts, plainEmbeddingKey);
 
     const document = await prisma.document.create({
       data: {

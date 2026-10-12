@@ -2,18 +2,53 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db/prisma";
 import { getChatbotTenant } from "@/lib/db/cache";
 import { getSystemPricingRates, calculateVoiceCost } from "@/lib/ai/providers";
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  RATE_LIMITS,
+} from "@/lib/security/rate-limit";
+import {
+  isDomainAllowed,
+  getCorsHeaders,
+  handleCorsPreflight,
+} from "@/lib/security/cors";
+
+/** Handle CORS OPTIONS preflight */
+export async function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
 
 export async function POST(req: NextRequest) {
+  // ── 1. Rate Limiting Check ──
+  const rateLimit = checkRateLimit(req, RATE_LIMITS.VOICE_TTS);
+  if (!rateLimit.success) {
+    return createRateLimitResponse(rateLimit);
+  }
+
   const apiKey = process.env.SARVAM_API_KEY;
   const openaiApiKey = process.env.OPENAI_API_KEY;
 
   try {
     const { text, speaker = "priya", language = "en", chatbotId, conversationId } = await req.json();
 
+    // ── 2. Allowed Domains Check (if chatbotId provided) ──
+    if (chatbotId) {
+      const chatbot = await getChatbotTenant(chatbotId);
+      if (chatbot) {
+        const domainCheck = isDomainAllowed(req, chatbot.widgetConfig?.allowedDomains);
+        if (!domainCheck.allowed) {
+          return NextResponse.json(
+            { error: `Domain '${domainCheck.hostname || "unknown"}' is not authorized to use this chatbot.` },
+            { status: 403, headers: getCorsHeaders(domainCheck.origin) }
+          );
+        }
+      }
+    }
+
     if (!text || typeof text !== "string") {
       return NextResponse.json(
         { error: "Text is required" },
-        { status: 400 }
+        { status: 400, headers: getCorsHeaders(req.headers.get("origin")) }
       );
     }
 

@@ -1,6 +1,21 @@
 import { createChatCompletion } from "@/lib/ai/chat";
 import prisma from "@/lib/db/prisma";
 import { getChatbotTenant } from "@/lib/db/cache";
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  RATE_LIMITS,
+} from "@/lib/security/rate-limit";
+import {
+  isDomainAllowed,
+  getCorsHeaders,
+  handleCorsPreflight,
+} from "@/lib/security/cors";
+
+/** Handle CORS OPTIONS preflight */
+export async function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
 
 /** Extract text from a UIMessage's parts array (AI SDK v6 format) */
 function extractText(message: { role: string; content?: string; parts?: Array<{ type: string; text?: string }> }): string {
@@ -16,6 +31,12 @@ function extractText(message: { role: string; content?: string; parts?: Array<{ 
 
 export async function POST(req: Request) {
   try {
+    // ── 1. Rate Limiting Check ──
+    const rateLimit = checkRateLimit(req, RATE_LIMITS.CHAT);
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit);
+    }
+
     const body = await req.json();
     const { chatbotId, messages, conversationId, visitorId, visitorName, visitorLocation, mode, language } = body;
 
@@ -43,6 +64,24 @@ export async function POST(req: Request) {
 
     if (chatbot.status !== "ACTIVE") {
       return new Response("Chatbot is not active", { status: 403 });
+    }
+
+    // ── 2. Allowed Domains / CORS Restriction ──
+    const domainCheck = isDomainAllowed(req, chatbot.widgetConfig?.allowedDomains);
+    if (!domainCheck.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: "Forbidden",
+          message: `Domain '${domainCheck.hostname || "unknown"}' is not authorized to use this chatbot.`,
+        }),
+        {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            ...getCorsHeaders(domainCheck.origin),
+          },
+        }
+      );
     }
 
     const resolvedVisitorId = visitorId || visitor?.id || null;
@@ -130,6 +169,10 @@ export async function POST(req: Request) {
     // Return as UI message stream response (AI SDK v6 format)
     const response = result.toUIMessageStreamResponse();
     response.headers.set("X-Conversation-Id", resolvedConversationId);
+    const corsHeaders = getCorsHeaders(domainCheck.origin);
+    for (const [k, v] of Object.entries(corsHeaders)) {
+      response.headers.set(k, v);
+    }
     return response;
   } catch (error) {
     console.error("[CHAT_API]", error);
