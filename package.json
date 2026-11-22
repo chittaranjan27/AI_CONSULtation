@@ -22,6 +22,7 @@
     "@ai-sdk/react": "^3.0.193",
     "@auth/prisma-adapter": "^2.11.2",
     "@hookform/resolvers": "^5.4.0",
+    "@prisma/adapter-pg": "6.19.3",
     "@prisma/client": "^6.19.3",
     "ai": "^6.0.191",
     "bcryptjs": "^3.0.3",

@@ -1,0 +1,11 @@
+@supports not selector(video::-webkit-media-text-track-container) {
+  .video::cue {
+    font-size: 75%;
+  }
+}
+
+/* Scale the rendered captions in browsers that apply system caption sizing. */
+.video::-webkit-media-text-track-container {
+  transform: scale(0.75);
+  transform-origin: center 80%;
+}

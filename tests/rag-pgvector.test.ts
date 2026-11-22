@@ -6,13 +6,13 @@ import { retrieveContext, invalidateRAGCache } from "../lib/ai/rag";
 describe("Phase 2: PostgreSQL/Neon pgvector RAG Tests", () => {
   test("1. pgvector extension and HNSW index are active in Neon database", async () => {
     const ext = await prisma.$queryRawUnsafe<any[]>(
-      "SELECT extname, extversion FROM pg_extension WHERE extname = 'vector'"
+      "SELECT extname::text AS extname, extversion FROM pg_extension WHERE extname = 'vector'"
     );
     assert.equal(ext.length, 1, "pgvector extension must be active in PostgreSQL");
     assert.equal(ext[0].extname, "vector");
 
     const indexes = await prisma.$queryRawUnsafe<any[]>(
-      "SELECT indexname FROM pg_indexes WHERE tablename = 'DocumentChunk' AND indexname = 'document_chunk_embedding_hnsw_idx'"
+      "SELECT indexname::text AS indexname FROM pg_indexes WHERE tablename = 'DocumentChunk' AND indexname = 'document_chunk_embedding_hnsw_idx'"
     );
     assert.equal(indexes.length, 1, "document_chunk_embedding_hnsw_idx HNSW index must exist");
   });

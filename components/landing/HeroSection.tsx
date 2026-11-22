@@ -2,12 +2,11 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import ProductDemo from "@/components/landing/ProductDemo";
 import {
   ArrowRight,
   Bot,
-  MessageSquare,
   Sparkles,
-  Play,
 } from "lucide-react";
 
 export default function HeroSection() {
@@ -88,10 +87,7 @@ export default function HeroSection() {
               Start Building Free
               <ArrowRight className="w-5 h-5" />
             </Link>
-            <a href="#demo" className="btn-secondary text-base py-3.5 px-8">
-              <Play className="w-4 h-4" />
-              Watch Demo
-            </a>
+            <ProductDemo />
           </motion.div>
 
           {/* Stats */}
