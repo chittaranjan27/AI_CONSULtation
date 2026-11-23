@@ -2,6 +2,8 @@ import { auth } from "@/lib/auth/auth";
 import { redirect } from "next/navigation";
 import AdminLayoutClient from "@/components/admin/AdminLayoutClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: {

@@ -36,10 +36,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV DATABASE_URL="postgresql://neondb_owner:dummy@ep-cloud.aws.neon.tech/neondb?sslmode=require"
 
-# Generate Prisma Client for the Linux container architecture
-RUN npx prisma generate
-
-# Build Next.js application (generates standalone output)
+# Generate Prisma Client and build the standalone Next.js application
 RUN npm run build
 
 # ============================================

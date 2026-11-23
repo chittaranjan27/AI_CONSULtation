@@ -14,7 +14,7 @@ function getWindowsNeonAdapter() {
     !databaseUrl ||
     !URL.canParse(databaseUrl)
   ) {
-    return;
+    return null;
   }
 
   const url = new URL(databaseUrl);
@@ -22,7 +22,7 @@ function getWindowsNeonAdapter() {
     !url.hostname.endsWith(".neon.tech") ||
     !["postgres:", "postgresql:"].includes(url.protocol)
   ) {
-    return;
+    return null;
   }
 
   if (url.searchParams.get("sslmode") === "require") {
